@@ -1,62 +1,21 @@
-<textarea 
-  id="draft-body-${idx}"
-  class="draft-body-text"
-  style="width:100%;min-height:280px;resize:vertical;
-         background:transparent;border:none;outline:none;
-         color:var(--text-muted);font-family:'DM Sans',sans-serif;
-         font-size:13px;line-height:1.8;padding:16px;
-         cursor:text;"
-  oninput="saveDraftEdit(${idx}, this.value)"
->${draftEmail}</textarea>
+-- Step 1: See duplicates first (run this to verify)
+SELECT case_id, COUNT(*) as count
+FROM public.derivatives_operations
+GROUP BY case_id
+HAVING COUNT(*) > 1
+ORDER BY count DESC;
 
+-- Step 2: Delete duplicates — keeps the LATEST row (highest id)
+-- Safe to run — only deletes older duplicate rows
+DELETE FROM public.derivatives_operations
+WHERE id NOT IN (
+  SELECT MAX(id)
+  FROM public.derivatives_operations
+  GROUP BY case_id
+);
 
-
-
-.draft-body-text:focus {
-  background: var(--surface2) !important;
-  border-radius: 0;
-  color: var(--text) !important;
-}
-.draft-body-text::selection {
-  background: var(--accent-glow);
-}
-
-
-// Save edited draft content locally
-function saveDraftEdit(idx, value) {
-  if(allDrafts[idx]) {
-    allDrafts[idx].draft_email = value;
-  }
-}
-
-
-
-
-
-
-// In sendDraft() — this already works correctly
-// allDrafts[idx].draft_email is updated by saveDraftEdit()
-// so whatever user edits gets sent to JSObject2
-appsmith.updateModel({
-  send_draft_payload: {
-    case_id:        d.case_id,
-    customer_name:  d.customer_name,
-    customer_email: d.customer_email,
-    draft_email:    d.draft_email,  // ← already has edited content
-    action:         'SEND_DRAFT'
-  }
-});
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+-- Step 3: Verify — should return empty now
+SELECT case_id, COUNT(*) as count
+FROM public.derivatives_operations
+GROUP BY case_id
+HAVING COUNT(*) > 1;
