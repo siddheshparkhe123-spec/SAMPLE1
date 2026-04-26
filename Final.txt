@@ -1,21 +1,38 @@
--- Step 1: See duplicates first (run this to verify)
-SELECT case_id, COUNT(*) as count
-FROM public.derivatives_operations
-GROUP BY case_id
-HAVING COUNT(*) > 1
-ORDER BY count DESC;
+ALTER TABLE public.derivatives_operations
+ADD COLUMN IF NOT EXISTS language VARCHAR(50),
+ADD COLUMN IF NOT EXISTS is_complaint BOOLEAN DEFAULT false,
+ADD COLUMN IF NOT EXISTS sla_due_at TIMESTAMP;
 
--- Step 2: Delete duplicates — keeps the LATEST row (highest id)
--- Safe to run — only deletes older duplicate rows
-DELETE FROM public.derivatives_operations
-WHERE id NOT IN (
-  SELECT MAX(id)
-  FROM public.derivatives_operations
-  GROUP BY case_id
-);
+ALTER TABLE public.treasury_documentation
+ADD COLUMN IF NOT EXISTS language VARCHAR(50),
+ADD COLUMN IF NOT EXISTS is_complaint BOOLEAN DEFAULT false,
+ADD COLUMN IF NOT EXISTS sla_due_at TIMESTAMP;
 
--- Step 3: Verify — should return empty now
-SELECT case_id, COUNT(*) as count
-FROM public.derivatives_operations
-GROUP BY case_id
-HAVING COUNT(*) > 1;
+
+
+
+"language": "",
+"is_complaint": false
+
+
+
+
+-- Add these columns to both insert queries
+language, is_complaint
+-- And their params
+'{{this.params.language}}',
+'{{this.params.is_complaint}}'
+
+
+
+
+
+
+
+
+
+
+language:     payload.language     || 'English',
+is_complaint: payload.is_complaint || false
+
+
