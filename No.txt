@@ -1,0 +1,337 @@
+export default {
+
+  // ── MAIN: Handle new case insert OR reply update ──
+  async OnInsertCase() {
+    const payload = Custom3.model.insert_payload;
+    const team    = (Custom3.model.insert_team || '').toLowerCase();
+
+    try {
+      const isReply        = payload.is_reply === true ||
+                             payload.is_reply === 'true';
+      const originalCaseId = payload.original_case_id || '';
+      const intent         = (payload.intent || '').toLowerCase();
+
+      // ── NET OUTSTANDING → Create Draft ──
+      if(intent.includes('net outstanding') ||
+         intent.includes('outstanding position') ||
+         intent.includes('ae gains')) {
+        await this.handleNetOutstanding(payload);
+        return;
+      }
+
+      if(isReply && originalCaseId) {
+        // ── REPLY: Update existing case ──
+        const existing     = await fetch_case_by_id.run({
+          case_id: originalCaseId
+        });
+        const existingCase = existing[0] || {};
+        const existingTeam = (existingCase.team || '').toLowerCase();
+        const timestamp    = new Date().toLocaleString();
+
+        // ── Detect thank you / closing reply ──
+        const replyText = (payload.summary || '').toLowerCase() +
+                          ' ' + (payload.holding_reply || '').toLowerCase();
+
+        const closingKeywords = [
+          'thank you', 'thanks', 'thank u', 'thnx',
+          'noted', 'acknowledged', 'received with thanks',
+          'much appreciated', 'appreciate it', 'appreciated',
+          'no further queries', 'no further questions',
+          'no more queries', 'nothing else',
+          'that\'s fine', 'that\'s all', 'thats all',
+          'okay', 'ok noted', 'perfect', 'great',
+          'understood', 'got it', 'duly noted',
+          'case can be closed', 'please close',
+          'you may close'
+        ];
+
+        const isClosed = payload.status === 'closed' ||
+          closingKeywords.some(kw => replyText.includes(kw));
+
+        const finalStatus = isClosed
+          ? 'closed'
+          : (payload.status || existingCase.status || 'open');
+
+        // Preserve original forward reply (keeps ref number)
+        const updatedForwardReply =
+          (existingCase.forward_reply || '') +
+          `\n\n--- Update received on ${timestamp} ---\n` +
+          (payload.forward_reply || '') +
+          (isClosed
+            ? '\n\n[CASE AUTO-CLOSED — Customer confirmed resolution]'
+            : '');
+
+        const threadHistory =
+          (existingCase.thread_history || '') +
+          `\n\n--- Reply received on ${timestamp} ---\n` +
+          (payload.summary || '') +
+          (isClosed
+            ? '\n\n✅ Case closed — customer satisfied.'
+            : '');
+
+        if(existingTeam.includes('treasury') ||
+           existingTeam.includes('gts') ||
+           team.includes('treasury') ||
+           team.includes('gts')) {
+          await update_treasury_reply.run({
+            case_id:        originalCaseId,
+            holding_reply:  payload.holding_reply,
+            forward_reply:  updatedForwardReply,
+            thread_history: threadHistory,
+            status:         finalStatus
+          });
+        } else {
+          await update_derivatives_reply.run({
+            case_id:        originalCaseId,
+            holding_reply:  payload.holding_reply,
+            forward_reply:  updatedForwardReply,
+            thread_history: threadHistory,
+            status:         finalStatus
+          });
+        }
+
+      } else {
+        // ── NEW CASE INSERT ──
+        if(team.includes('treasury') || team.includes('gts')) {
+
+          // Generate GTS reference number
+          const now   = new Date();
+          const yy    = now.getFullYear();
+          const mm    = String(now.getMonth()+1).padStart(2,'0');
+          const dd    = String(now.getDate()).padStart(2,'0');
+          const rand  = Math.floor(10000 + Math.random() * 90000);
+          const refNo = `GTS-REF-${yy}${mm}${dd}-${rand}`;
+
+          // Map intent to process type
+          let processType = 'General';
+          if(intent.includes('invocation') ||
+             intent.includes('invoke'))
+            processType = 'Invocation';
+          else if(intent.includes('cancellation') ||
+                  intent.includes('cancel'))
+            processType = 'Cancellation';
+          else if(intent.includes('extension') ||
+                  intent.includes('extend'))
+            processType = 'Extension';
+          else if(intent.includes('submission') ||
+                  intent.includes('submit'))
+            processType = 'Guarantee Submission';
+          else if(intent.includes('claim'))
+            processType = 'Claim';
+
+          const updatedForwardReply =
+            (payload.forward_reply || '') +
+            `\n\nReference Number: ${refNo}` +
+            `\nProcess Type: ${processType}` +
+            `\nPlease quote this reference in all correspondence.`;
+
+          await insert_treasury_documentation.run({
+            case_id:       payload.case_id,
+            intent:        payload.intent,
+            team:          payload.team,
+            summary:       payload.summary,
+            reason:        payload.reason,
+            holding_reply: payload.holding_reply,
+            forward_reply: updatedForwardReply,
+            confidence:    payload.confidence,
+            status:        payload.status
+          });
+
+          await insert_adm.run({
+            reference_number: refNo,
+            case_id:          payload.case_id,
+            process_type:     processType
+          });
+
+        } else {
+          // Derivatives — normal insert
+          await insert_derivatives_operations.run({
+            case_id:       payload.case_id,
+            intent:        payload.intent,
+            team:          payload.team,
+            summary:       payload.summary,
+            reason:        payload.reason,
+            holding_reply: payload.holding_reply,
+            forward_reply: payload.forward_reply,
+            confidence:    payload.confidence,
+            status:        payload.status
+          });
+        }
+      }
+
+      // Refresh both tables
+      await fetch_derivatives_operations.run();
+      await fetch_treasury_documentation.run();
+
+    } catch(err) {
+      console.error('OnInsertCase failed:', err);
+    }
+  },
+
+  // ── NET OUTSTANDING: Fetch OT records + build draft ──
+  async handleNetOutstanding(payload) {
+    try {
+      // 1. Insert case into derivatives as pending
+      await insert_derivatives_operations.run({
+        case_id:       payload.case_id,
+        intent:        payload.intent,
+        team:          payload.team,
+        summary:       payload.summary,
+        reason:        payload.reason,
+        holding_reply: payload.holding_reply,
+        forward_reply: payload.forward_reply,
+        confidence:    payload.confidence,
+        status:        'pending'
+      });
+
+      // 2. Extract customer details from agent payload
+      const customerEmail = payload.customer_email || '';
+      const customerName  = payload.customer_name  ||
+                            payload.sender_name    || '';
+
+      // 3. Fetch OT records for this customer from DB
+      const otRecords = await fetch_ot_by_customer.run({
+        customer_email: customerEmail,
+        customer_name:  customerName
+      });
+
+      // 4. Build formatted OT deal details to append
+      const otSummary = (otRecords || []).map((r, i) =>
+        `\nDeal ${i + 1}:` +
+        `\n  Reference ID   : ${r.deal_reference_id || '—'}` +
+        `\n  Name           : ${r.name              || '—'}` +
+        `\n  Deal Date      : ${r.deal_date          || '—'}` +
+        `\n  Deal Status    : ${r.deal_status        || '—'}` +
+        `\n  Dealing Number : ${r.dealing_number     || '—'}`
+      ).join('\n');
+
+      // 5. Use agent drafted mail — no second agent call
+      // Agent returns customer_details_mail in first response
+      const baseDraft  = payload.customer_details_mail || '';
+      const finalDraft = baseDraft
+        ? baseDraft +
+          `\n\n--- Your Outstanding Deal Details ---` +
+          otSummary +
+          `\n\nShould you have any queries regarding the above,` +
+          ` please do not hesitate to contact us.` +
+          `\n\nBest regards,` +
+          `\nDerivatives Operations INM` +
+          `\nHSBC India`
+        : `Dear ${customerName},` +
+          `\n\nThank you for reaching out to HSBC Derivatives` +
+          ` Operations INM.` +
+          `\n\nPlease find below your net outstanding position` +
+          ` as on today's date:` +
+          otSummary +
+          `\n\nShould you have any queries, please do not` +
+          ` hesitate to contact us.` +
+          `\n\nBest regards,` +
+          `\nDerivatives Operations INM` +
+          `\nHSBC India`;
+
+      // 6. Save draft to ot_drafts table
+      await insert_ot_draft.run({
+        case_id:        payload.case_id,
+        customer_name:  customerName,
+        customer_email: customerEmail,
+        draft_email:    finalDraft,
+        ot_records:     JSON.stringify(otRecords || [])
+      });
+
+      // 7. Refresh all data
+      await fetch_derivatives_operations.run();
+      await fetch_treasury_documentation.run();
+      await fetch_ot_drafts.run();
+
+    } catch(err) {
+      console.error('handleNetOutstanding failed:', err);
+    }
+  }
+
+};
+
+
+
+
+UPDATE public.derivatives_operations SET
+  holding_reply  = '{{this.params.holding_reply}}',
+  forward_reply  = '{{this.params.forward_reply}}',
+  thread_history = '{{this.params.thread_history}}',
+  reply_count    = reply_count + 1,
+  last_reply_at  = NOW(),
+  status         = '{{this.params.status}}'
+WHERE case_id = '{{this.params.case_id}}';
+
+
+
+
+
+
+CLOSING REPLY DETECTION:
+If the email is a reply (is_reply: true) AND the content 
+indicates satisfaction or closure such as:
+- "thank you", "thanks", "thank u", "thnx"
+- "noted", "acknowledged", "received"
+- "that's fine", "okay", "ok", "perfect"
+- "much appreciated", "appreciate it"
+- "no further queries", "no further questions"
+- "that's all", "nothing else"
+- "understood", "got it"
+
+→ Set status = "closed"
+→ Set sentiment = "normal"
+→ Set holding_reply = brief professional closing message
+  Example: "Dear [Name], Thank you for your response. 
+  We are glad we could assist. This case has now been 
+  closed. Please feel free to reach out if you need 
+  further assistance. Regards, HSBC Email Triage Team"
+
+
+
+
+
+
+
+Q8: Does email contain complaint keywords like
+    "unacceptable", "disappointed", "legal action",
+    "regulatory", "escalate to management"?
+    → YES = is_complaint: true, status: "escalated"
+
+Q9: What language is the email written in?
+    → Set language field accordingly
+    → Default "English" if unclear
+
+
+
+
+
+
+COMPLAINT OVERRIDE RULE:
+If is_complaint = true → ALWAYS set status = "escalated"
+regardless of other conditions.
+
+
+
+
+
+
+- language → Detect the language the email is written in.
+  Return the language name in English.
+  Examples: "English", "Hindi", "Arabic", "French"
+  If cannot determine → return "English"
+
+- is_complaint → Return true if the email contains:
+  complaint, dissatisfaction, frustration, anger,
+  words like "unacceptable", "disappointed", "worst",
+  "disgusted", "filing complaint", "regulatory body",
+  "escalate to management", "legal action"
+  Otherwise return false
+  Return as boolean: true or false (not string)
+
+
+
+
+"language": "",
+"is_complaint": false
+
+
