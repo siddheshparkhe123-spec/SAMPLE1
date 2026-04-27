@@ -1,38 +1,2332 @@
-ALTER TABLE public.derivatives_operations
-ADD COLUMN IF NOT EXISTS language VARCHAR(50),
-ADD COLUMN IF NOT EXISTS is_complaint BOOLEAN DEFAULT false,
-ADD COLUMN IF NOT EXISTS sla_due_at TIMESTAMP;
+<!DOCTYPE html>
 
-ALTER TABLE public.treasury_documentation
-ADD COLUMN IF NOT EXISTS language VARCHAR(50),
-ADD COLUMN IF NOT EXISTS is_complaint BOOLEAN DEFAULT false,
-ADD COLUMN IF NOT EXISTS sla_due_at TIMESTAMP;
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HSBC Email Triage</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #181b24;
+  --surface2: #1f2330;
+  --surface3: #252a3a;
+  --border: #2a2f42;
+  --accent: #4f7cff;
+  --accent2: #7c3aed;
+  --accent-glow: rgba(79,124,255,0.15);
+  --text: #e4e8f5;
+  --text-muted: #7a82a0;
+  --text-dim: #4a5068;
+  --green: #22c55e;
+  --yellow: #f59e0b;
+  --red: #ef4444;
+  --orange: #f97316;
+  --hsbc-red: #db0011;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
 
+/* ── LIGHT MODE ── */
+body.light-mode {
+–bg: #f0f2f7;
+–surface: #ffffff;
+–surface2: #e8eaf2;
+–surface3: #dde0ee;
+–border: #c8cde0;
+–accent: #3d6ae8;
+–accent2: #6d28d9;
+–accent-glow: rgba(61,106,232,0.12);
+–text: #1a1d2e;
+–text-muted: #4a5280;
+–text-dim: #8890b0;
+–green: #16a34a;
+–yellow: #d97706;
+–red: #dc2626;
+–orange: #ea580c;
+–hsbc-red: #db0011;
+}
+html, body {
+font-family: ‘DM Sans’, sans-serif;
+background: var(–bg);
+color: var(–text);
+min-height: 100vh;
+overflow-x: hidden;
+}
 
+/* ── PAGE SYSTEM ── */
+.page { display:none; min-height:100vh; }
+.page.active { display:flex; flex-direction:column; }
 
+/* ── LOGIN ── */
+#page-login {
+background:var(–bg); align-items:center; justify-content:center;
+position:relative; overflow:hidden;
+}
+#page-login::before {
+content:’’; position:absolute; width:600px; height:600px;
+background:radial-gradient(circle,rgba(79,124,255,0.12) 0%,transparent 70%);
+top:-100px; left:-100px; border-radius:50%;
+animation:blob1 8s ease-in-out infinite;
+}
+#page-login::after {
+content:’’; position:absolute; width:500px; height:500px;
+background:radial-gradient(circle,rgba(124,58,237,0.1) 0%,transparent 70%);
+bottom:-80px; right:-80px; border-radius:50%;
+animation:blob2 10s ease-in-out infinite;
+}
+@keyframes blob1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(30px,20px) scale(1.05)}}
+@keyframes blob2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-20px,-30px) scale(1.08)}}
 
-"language": "",
-"is_complaint": false
+.login-card {
+background:var(–surface); border:1px solid var(–border);
+border-radius:20px; padding:48px 44px;
+width:100%; max-width:420px;
+position:relative; z-index:1;
+box-shadow:0 24px 80px rgba(0,0,0,0.5);
+animation:fadeUp 0.5s ease;
+}
+@keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+.login-logo { display:flex; align-items:center; gap:12px; margin-bottom:8px; }
+.hsbc-badge {
+background:var(–hsbc-red); color:#fff;
+font-family:‘Space Mono’,monospace; font-size:13px; font-weight:700;
+padding:5px 10px; border-radius:6px; letter-spacing:1px;
+}
+.login-logo-text { font-family:‘Space Mono’,monospace; font-size:14px; font-weight:700; color:var(–text-muted); }
+.login-title { font-size:26px; font-weight:700; color:var(–text); margin-bottom:4px; margin-top:20px; }
+.login-subtitle { font-size:13.5px; color:var(–text-muted); margin-bottom:32px; line-height:1.5; }
+.form-group { margin-bottom:18px; }
+.form-label { display:block; font-size:12px; font-weight:600; color:var(–text-muted); letter-spacing:0.5px; text-transform:uppercase; margin-bottom:7px; }
+.form-input {
+width:100%; background:var(–surface2); border:1px solid var(–border);
+border-radius:10px; padding:11px 14px; color:var(–text);
+font-family:‘DM Sans’,sans-serif; font-size:14px; outline:none;
+transition:border-color 0.2s,box-shadow 0.2s;
+}
+.form-input:focus { border-color:var(–accent); box-shadow:0 0 0 3px var(–accent-glow); }
+.form-input::placeholder { color:var(–text-dim); }
+.login-btn {
+width:100%; padding:13px;
+background:linear-gradient(135deg,var(–accent),var(–accent2));
+border:none; border-radius:10px; color:#fff;
+font-family:‘DM Sans’,sans-serif; font-size:15px; font-weight:600;
+cursor:pointer; margin-top:8px;
+box-shadow:0 6px 24px rgba(79,124,255,0.35);
+transition:opacity 0.2s,transform 0.15s;
+}
+.login-btn:hover { opacity:0.9; transform:translateY(-1px); }
+.login-error {
+background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.3);
+border-radius:8px; padding:10px 12px; color:var(–red);
+font-size:13px; margin-top:14px; display:none;
+}
+.login-footer { text-align:center; margin-top:24px; font-size:12px; color:var(–text-dim); }
 
+/* ── APP HEADER ── */
+#page-app { background:var(–bg); }
+.app-header {
+height:52px; background:var(–surface); border-bottom:1px solid var(–border);
+display:flex; align-items:center; padding:0 16px; gap:12px;
+position:sticky; top:0; z-index:20; flex-shrink:0;
+}
+.app-logo { font-family:‘Space Mono’,monospace; font-size:15px; font-weight:700; color:var(–accent); white-space:nowrap; }
+.app-logo span { color:var(–text-muted); font-weight:400; }
+.tab-bar {
+display:flex; gap:2px; background:var(–surface2);
+border:1px solid var(–border); border-radius:10px; padding:4px; margin:0 auto;
+}
+.tab-btn {
+padding:6px 14px; border-radius:7px; border:none;
+background:transparent; color:var(–text-muted);
+font-family:‘DM Sans’,sans-serif; font-size:12.5px; font-weight:500;
+cursor:pointer; transition:all 0.18s; white-space:nowrap;
+display:flex; align-items:center; gap:5px;
+}
+.tab-btn:hover { color:var(–text); }
+.tab-btn.active { background:var(–surface); color:var(–text); box-shadow:0 1px 4px rgba(0,0,0,0.3); }
+.header-right { display:flex; gap:8px; align-items:center; margin-left:auto; }
+.user-info { font-size:12.5px; color:var(–text-muted); }
+.avatar {
+width:30px; height:30px; border-radius:50%;
+background:linear-gradient(135deg,var(–accent),var(–accent2));
+display:flex; align-items:center; justify-content:center;
+font-size:11px; font-weight:700; cursor:pointer;
+}
+.logout-btn {
+background:transparent; border:1px solid var(–border); border-radius:7px;
+padding:5px 10px; color:var(–text-muted); font-size:12px; cursor:pointer;
+transition:all 0.15s; font-family:‘DM Sans’,sans-serif;
+}
+.logout-btn:hover { border-color:var(–red); color:var(–red); }
+.tab-panel { display:none; flex:1; }
+.tab-panel.active { display:block; }
 
+/* ── UPLOAD TAB ── */
+.upload-page { max-width:680px; margin:40px auto; padding:0 20px 60px; }
+.upload-heading { font-size:22px; font-weight:700; margin-bottom:4px; }
+.upload-subheading { font-size:13.5px; color:var(–text-muted); margin-bottom:32px; }
+.drop-zone {
+border:2px dashed var(–border); border-radius:16px;
+padding:52px 32px; text-align:center; cursor:pointer;
+transition:all 0.2s; background:var(–surface);
+position:relative; margin-bottom:24px;
+}
+.drop-zone:hover,.drop-zone.drag-over { border-color:var(–accent); background:var(–accent-glow); }
+.drop-zone input[type=file] { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; }
+.drop-icon { font-size:44px; margin-bottom:14px; display:block; }
+.drop-title { font-size:16px; font-weight:600; margin-bottom:6px; }
+.drop-sub { font-size:13px; color:var(–text-muted); }
+.drop-formats { display:flex; gap:8px; justify-content:center; margin-top:14px; flex-wrap:wrap; }
+.format-tag {
+background:var(–surface2); border:1px solid var(–border);
+border-radius:6px; padding:3px 10px;
+font-size:11px; font-weight:600; color:var(–text-dim);
+letter-spacing:0.5px; text-transform:uppercase;
+}
+.selected-file {
+display:none; background:var(–surface); border:1px solid var(–border);
+border-radius:12px; padding:14px 16px; margin-bottom:20px;
+align-items:center; gap:12px;
+}
+.selected-file.show { display:flex; }
+.file-icon { font-size:26px; flex-shrink:0; }
+.file-details { flex:1; min-width:0; }
+.file-name { font-size:13.5px; font-weight:600; color:var(–text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.file-size { font-size:12px; color:var(–text-muted); margin-top:2px; }
+.file-remove { background:none; border:none; cursor:pointer; color:var(–text-dim); font-size:18px; padding:4px; border-radius:6px; transition:color 0.15s; flex-shrink:0; }
+.file-remove:hover { color:var(–red); }
+.upload-btn {
+width:100%; padding:14px;
+background:linear-gradient(135deg,var(–accent),var(–accent2));
+border:none; border-radius:12px; color:#fff;
+font-family:‘DM Sans’,sans-serif; font-size:15px; font-weight:600; cursor:pointer;
+box-shadow:0 6px 24px rgba(79,124,255,0.3);
+transition:opacity 0.2s,transform 0.15s;
+display:flex; align-items:center; justify-content:center; gap:8px;
+}
+.upload-btn:hover:not(:disabled) { opacity:0.9; transform:translateY(-1px); }
+.upload-btn:disabled { opacity:0.45; cursor:not-allowed; transform:none; }
+.progress-card {
+display:none; background:var(–surface); border:1px solid var(–border);
+border-radius:16px; padding:28px; margin-top:24px;
+}
+.progress-card.show { display:block; }
+.progress-title { font-size:14px; font-weight:600; margin-bottom:20px; display:flex; align-items:center; gap:8px; }
+.step-list { display:flex; flex-direction:column; gap:0; }
+.step-item { display:flex; align-items:center; gap:14px; padding:12px 0; border-bottom:1px solid var(–border); position:relative; }
+.step-item:last-child { border-bottom:none; }
+.step-icon {
+width:34px; height:34px; border-radius:50%;
+display:flex; align-items:center; justify-content:center;
+flex-shrink:0; font-size:15px;
+background:var(–surface2); border:2px solid var(–border); transition:all 0.4s;
+}
+.step-item.waiting .step-icon { background:var(–surface2); border-color:var(–border); color:var(–text-dim); }
+.step-item.loading .step-icon { background:rgba(79,124,255,0.15); border-color:var(–accent); }
+.step-item.done    .step-icon { background:rgba(34,197,94,0.15); border-color:var(–green); color:var(–green); }
+.step-item.error   .step-icon { background:rgba(239,68,68,0.15); border-color:var(–red); color:var(–red); }
+.step-spin { width:16px; height:16px; border:2px solid rgba(79,124,255,0.3); border-top-color:var(–accent); border-radius:50%; animation:spin 0.7s linear infinite; }
+@keyframes spin{to{transform:rotate(360deg)}}
+.step-text { flex:1; }
+.step-label { font-size:13.5px; font-weight:500; }
+.step-item.waiting .step-label { color:var(–text-dim); }
+.step-item.loading .step-label { color:var(–text); }
+.step-item.done    .step-label { color:var(–green); }
+.step-item.error   .step-label { color:var(–red); }
+.step-sub { font-size:12px; color:var(–text-muted); margin-top:2px; }
+.step-time { font-size:11px; color:var(–text-dim); flex-shrink:0; }
+.result-card { display:none; border-radius:12px; padding:18px 20px; margin-top:16px; }
+.result-card.success { display:block; background:rgba(34,197,94,0.08); border:1px solid rgba(34,197,94,0.25); }
+.result-card.fail    { display:block; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.25); }
+.result-card-title { font-size:14px; font-weight:600; margin-bottom:8px; }
+.result-card.success .result-card-title { color:var(–green); }
+.result-card.fail    .result-card-title { color:var(–red); }
+.result-detail { font-size:12.5px; color:var(–text-muted); line-height:1.6; }
+.result-detail strong { color:var(–text); }
+.view-case-btn {
+display:inline-flex; align-items:center; gap:6px;
+margin-top:14px; padding:8px 16px;
+background:var(–accent); border:none; border-radius:8px;
+color:#fff; font-family:‘DM Sans’,sans-serif; font-size:13px; font-weight:600;
+cursor:pointer; transition:opacity 0.2s;
+}
+.view-case-btn:hover { opacity:0.88; }
 
+/* ── INBOX TAB ── */
+.inbox-layout { display:flex; min-height:calc(100vh - 52px); }
+.inbox-sidebar {
+width:230px; background:var(–surface); border-right:1px solid var(–border);
+display:flex; flex-direction:column; flex-shrink:0; padding:10px 0;
+position:sticky; top:52px; height:calc(100vh - 52px); overflow-y:auto;
+}
+.section-label { font-size:9.5px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:var(–text-dim); padding:8px 13px 3px; }
+.nav-item {
+display:flex; align-items:center; gap:9px; padding:7px 12px; border-radius:7px;
+margin:1px 5px; cursor:pointer; font-size:12.5px; color:var(–text-muted);
+transition:background 0.15s,color 0.15s;
+}
+.nav-item:hover { background:var(–surface2); color:var(–text); }
+.nav-item.active { background:var(–accent-glow); color:var(–accent); }
+.nav-item .bc { margin-left:auto; background:var(–surface3); font-size:10.5px; font-weight:600; border-radius:99px; padding:1px 6px; color:var(–text-muted); }
+.nav-item.active .bc { background:var(–accent); color:#fff; }
+.sidebar-divider { height:1px; background:var(–border); margin:8px 10px; }
+.team-folder { margin:2px 5px; }
+.team-folder-hdr {
+display:flex; align-items:center; gap:8px; padding:7px 12px; cursor:pointer;
+font-size:12.5px; font-weight:500; color:var(–text-muted);
+border-radius:7px; transition:background 0.15s,color 0.15s;
+}
+.team-folder-hdr:hover { background:var(–surface2); color:var(–text); }
+.team-folder-hdr.open { color:var(–text); background:var(–surface2); }
+.team-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.dot-d { background:#4f7cff; } .dot-t { background:#7c3aed; }
+.chev { margin-left:auto; font-size:9px; color:var(–text-dim); transition:transform 0.22s; }
+.team-folder-hdr.open .chev { transform:rotate(90deg); }
+.folder-body { display:none; padding:2px 5px 4px 13px; flex-direction:column; gap:1px; }
+.folder-body.show { display:flex; }
+.folder-sub {
+padding:5px 9px; border-radius:6px; font-size:11.5px; color:var(–text-dim);
+cursor:pointer; transition:background 0.1s,color 0.1s;
+display:flex; align-items:center; gap:6px;
+}
+.folder-sub:hover { background:var(–surface3); color:var(–text-muted); }
+.inbox-main { flex:1; display:flex; flex-direction:column; }
+.inbox-toolbar {
+display:flex; align-items:center; gap:8px; padding:9px 14px;
+border-bottom:1px solid var(–border); background:var(–surface);
+flex-shrink:0; position:sticky; top:52px; z-index:5; flex-wrap:wrap;
+}
+.toolbar-title { font-size:14px; font-weight:600; color:var(–text); margin-right:auto; }
+.filter-chip {
+background:var(–surface2); border:1px solid var(–border);
+border-radius:99px; padding:4px 11px; font-size:11.5px; color:var(–text-muted);
+cursor:pointer; transition:all 0.15s; white-space:nowrap;
+}
+.filter-chip:hover,.filter-chip.factive { background:var(–accent-glow); border-color:var(–accent); color:var(–accent); }
+.case-list { padding:6px 10px 40px; display:flex; flex-direction:column; gap:3px; }
+.team-group-hdr {
+display:flex; align-items:center; gap:8px; padding:10px 6px 4px;
+font-size:10.5px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:var(–text-dim);
+}
+.team-group-hdr::after { content:’’; flex:1; height:1px; background:var(–border); }
+.case-row {
+background:var(–surface); border:1px solid var(–border);
+border-radius:9px; padding:11px 14px; cursor:pointer;
+transition:border-color 0.2s,background 0.2s,box-shadow 0.2s;
+position:relative; overflow:visible;
+}
+.case-row::before { content:’’; position:absolute; left:0; top:0; bottom:0; width:3px; border-radius:3px 0 0 3px; background:transparent; transition:background 0.2s; }
+.case-row:hover { border-color:var(–accent); background:var(–surface2); box-shadow:0 0 0 1px var(–accent-glow),0 3px 14px rgba(0,0,0,0.2); }
+.case-row:hover::before,.case-row.open::before { background:var(–accent); }
+.case-row.open { border-color:var(–accent); background:var(–surface2); box-shadow:0 0 0 1px var(–accent-glow); }
+.case-summary { display:flex; align-items:center; gap:10px; }
+.star-btn { background:none; border:none; cursor:pointer; color:var(–text-dim); font-size:13px; flex-shrink:0; transition:color 0.15s; }
+.star-btn:hover,.star-btn.on { color:var(–yellow); }
+.team-badge { font-size:9.5px; font-weight:700; letter-spacing:0.4px; padding:2px 7px; border-radius:99px; flex-shrink:0; text-transform:uppercase; }
+.badge-d { background:rgba(79,124,255,0.13); color:#7da4ff; }
+.badge-t { background:rgba(124,58,237,0.13); color:#b07dff; }
+.case-info { flex:1; min-width:0; }
+.case-info-top { display:flex; align-items:center; gap:7px; margin-bottom:2px; }
+.case-id { font-family:‘Space Mono’,monospace; font-size:10.5px; font-weight:700; color:var(–accent); flex-shrink:0; }
+.case-intent { font-size:13px; font-weight:500; color:var(–text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.case-meta { display:flex; align-items:center; gap:7px; }
+.case-sum-text { font-size:12px; color:var(–text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1; }
+.status-pill { font-size:10px; font-weight:700; padding:2px 7px; border-radius:99px; flex-shrink:0; text-transform:uppercase; }
+.conf-pill { font-size:10px; font-weight:700; padding:2px 7px; border-radius:99px; flex-shrink:0; }
+.ch { background:rgba(34,197,94,0.13); color:var(–green); }
+.cm { background:rgba(245,158,11,0.13); color:var(–yellow); }
+.cl { background:rgba(239,68,68,0.13); color:var(–red); }
+.case-time { font-size:11px; color:var(–text-dim); flex-shrink:0; }
+.case-expanded { display:none; margin-top:12px; padding-top:12px; border-top:1px solid var(–border); animation:slideDown 0.22s ease; }
+.case-row.open .case-expanded { display:block; }
+@keyframes slideDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+.detail-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px; }
+.detail-card { background:var(–surface3); border:1px solid var(–border); border-radius:8px; padding:10px 12px; }
+.detail-label { font-size:9.5px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(–text-dim); margin-bottom:5px; }
+.detail-value { font-size:12.5px; color:var(–text); line-height:1.5; }
+.detail-value.mono { font-family:‘Space Mono’,monospace; font-size:11.5px; color:var(–accent); }
+.reply-block { background:var(–surface3); border:1px solid var(–border); border-radius:8px; padding:10px 12px; margin-bottom:10px; }
+.reply-label { font-size:9.5px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(–text-dim); margin-bottom:7px; }
+.reply-bubble { background:var(–surface2); border-left:3px solid var(–accent); border-radius:0 5px 5px 0; padding:9px 11px; font-size:12px; color:var(–text-muted); line-height:1.6; }
+.reply-bubble.fwd { border-left-color:var(–orange); }
+.conf-bar-wrap { display:flex; align-items:center; gap:8px; }
+.conf-bar { flex:1; height:5px; background:var(–surface2); border-radius:99px; overflow:hidden; }
+.conf-bar-fill { height:100%; border-radius:99px; }
+.reason-tag { display:inline-block; background:var(–surface2); border:1px solid var(–border); border-radius:5px; font-size:11.5px; color:var(–text-muted); padding:4px 9px; line-height:1.5; }
+.action-row { display:flex; gap:7px; margin-top:4px; flex-wrap:wrap; }
+.act-btn {
+display:flex; align-items:center; gap:5px; padding:6px 12px; border-radius:6px;
+border:1px solid var(–border); background:var(–surface2); color:var(–text-muted);
+font-family:‘DM Sans’,sans-serif; font-size:12px; font-weight:500; cursor:pointer; transition:all 0.15s;
+}
+.act-btn:hover { border-color:var(–accent); color:var(–accent); background:var(–accent-glow); }
+.act-btn.primary { background:var(–accent); border-color:var(–accent); color:#fff; }
+.act-btn.primary:hover { opacity:0.88; }
+.act-btn.danger:hover { border-color:var(–red); color:var(–red); background:rgba(239,68,68,0.08); }
+.state-msg { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:300px; gap:8px; color:var(–text-dim); font-size:13.5px; text-align:center; padding:40px; }
+.state-msg .icon { font-size:36px; margin-bottom:6px; }
+.spin2 { width:28px; height:28px; border:3px solid var(–border); border-top-color:var(–accent); border-radius:50%; animation:spin 0.7s linear infinite; }
 
--- Add these columns to both insert queries
-language, is_complaint
--- And their params
-'{{this.params.language}}',
-'{{this.params.is_complaint}}'
+/* ── DASHBOARD ── */
+.stat-card {
+background:var(–surface); border:1px solid var(–border);
+border-radius:14px; padding:20px;
+transition:border-color 0.2s,box-shadow 0.2s;
+}
+.stat-card:hover { border-color:var(–accent); box-shadow:0 0 0 1px var(–accent-glow); }
+.stat-number { font-family:‘Space Mono’,monospace; font-size:34px; font-weight:700; line-height:1; margin-bottom:6px; }
+.stat-label { font-size:11.5px; font-weight:600; letter-spacing:0.5px; color:var(–text-muted); text-transform:uppercase; }
+.stat-sub { font-size:11px; color:var(–text-dim); margin-top:4px; }
+.dash-section { background:var(–surface); border:1px solid var(–border); border-radius:14px; padding:22px; }
+.dash-section-title { font-size:11px; font-weight:700; letter-spacing:1px; color:var(–text-muted); text-transform:uppercase; margin-bottom:18px; display:flex; align-items:center; gap:8px; }
+.dash-bar-row { display:flex; align-items:center; gap:12px; margin-bottom:14px; }
+.dash-bar-row:last-child { margin-bottom:0; }
+.dash-bar-label { font-size:12.5px; font-weight:500; color:var(–text); width:160px; flex-shrink:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dash-bar-track { flex:1; height:8px; background:var(–surface2); border-radius:99px; overflow:hidden; }
+.dash-bar-fill { height:100%; border-radius:99px; transition:width 0.8s ease; }
+.dash-bar-count { font-family:‘Space Mono’,monospace; font-size:12px; font-weight:700; color:var(–text-muted); width:28px; text-align:right; flex-shrink:0; }
+.dash-bar-pct { font-size:11px; color:var(–text-dim); width:36px; text-align:right; flex-shrink:0; }
+.recent-row { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(–border); }
+.recent-row:last-child { border-bottom:none; }
+.dash-divider { height:1px; background:var(–border); margin:14px 0; }
+.dash-total-row { display:flex; justify-content:space-between; align-items:center; }
 
+.case-row.has-replies { border-left: 3px solid var(–accent2); }
+.case-row.has-replies::before { background: var(–accent2); }
 
+/* Thread history scrollbar */
+.reply-bubble::-webkit-scrollbar { width: 3px; }
+.reply-bubble::-webkit-scrollbar-thumb { background: var(–border); border-radius:99px; }
 
+/* ── SLA TIMER ── */
+.sla-badge {
+font-size:10px; font-weight:700; padding:2px 8px;
+border-radius:99px; flex-shrink:0; white-space:nowrap;
+display:flex; align-items:center; gap:4px;
+}
+.sla-ok      { background:rgba(34,197,94,0.15);  color:var(–green); }
+.sla-warning { background:rgba(245,158,11,0.15); color:var(–yellow); }
+.sla-breach  { background:rgba(239,68,68,0.15);  color:var(–red);
+animation:sla-pulse 1.5s ease-in-out infinite; }
+@keyframes sla-pulse {
+0%,100% { opacity:1; } 50% { opacity:0.5; }
+}
 
+/* ── LANGUAGE BADGE ── */
+.lang-badge {
+font-size:9.5px; font-weight:700; padding:2px 7px;
+border-radius:99px; flex-shrink:0;
+background:rgba(124,58,237,0.13); color:#b07dff;
+}
 
+/* ── COMPLAINT FLAG ── */
+.complaint-flag {
+font-size:9.5px; font-weight:700; padding:2px 8px;
+border-radius:99px; flex-shrink:0;
+background:rgba(239,68,68,0.15); color:var(–red);
+animation:sla-pulse 2s ease-in-out infinite;
+}
 
+/* ── EDITABLE DRAFT ── */
+.draft-body-text {
+width:100%; min-height:240px; resize:vertical;
+background:transparent; border:none; outline:none;
+color:var(–text-muted); font-family:‘DM Sans’,sans-serif;
+font-size:13px; line-height:1.8; padding:16px; cursor:text;
+transition:background 0.2s, color 0.2s;
+}
+.draft-body-text:focus {
+background:var(–surface2);
+border-radius:0;
+color:var(–text);
+}
+.draft-body-text::selection { background:var(–accent-glow); }
 
+/* ── SENTIMENT BADGE ── */
+.sentiment-badge {
+font-size:9.5px; font-weight:700; padding:2px 8px;
+border-radius:99px; flex-shrink:0; text-transform:uppercase;
+}
+.s-normal     { background:rgba(34,197,94,0.13);  color:#5ee89a; }
+.s-follow-up  { background:rgba(245,158,11,0.13); color:#fbbf24; }
+.s-escalation { background:rgba(239,68,68,0.13);  color:#f87171; }
+.draft-card {
+background:var(–surface); border:1px solid var(–border);
+border-radius:12px; padding:0; margin-bottom:8px;
+overflow:visible; position:relative;
+}
+.draft-card::before {
+content:’’; position:absolute; left:0; top:0; bottom:0;
+width:3px; border-radius:3px 0 0 3px;
+background:var(–yellow);
+}
+.draft-header {
+display:flex; align-items:center; gap:10px;
+padding:12px 16px; cursor:pointer;
+transition:background 0.15s;
+border-radius:12px;
+}
+.draft-header:hover { background:var(–surface2); }
+.draft-tag {
+font-size:9.5px; font-weight:700; padding:2px 8px;
+border-radius:99px; background:rgba(245,158,11,0.15);
+color:var(–yellow); text-transform:uppercase; flex-shrink:0;
+}
+.draft-info { flex:1; min-width:0; }
+.draft-to   { font-size:11px; font-weight:600; color:var(–text-dim); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:3px; }
+.draft-subject { font-size:13px; font-weight:600; color:var(–text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:2px; }
+.draft-preview { font-size:12px; color:var(–text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.draft-body-wrap { display:none; }
+.draft-card.open .draft-body-wrap { display:block; }
+.draft-body-wrap { padding:0 16px 16px; }
+.draft-mail-box {
+background:var(–surface3); border:1px solid var(–border);
+border-radius:10px; overflow:hidden; margin-bottom:12px;
+}
+.draft-mail-hdr { padding:12px 16px; border-bottom:1px solid var(–border); display:flex; flex-direction:column; gap:5px; }
+.draft-mail-hdr-row { display:flex; gap:8px; font-size:12px; align-items:flex-start; }
+.draft-mail-hdr-label { color:var(–text-dim); font-weight:600; width:42px; flex-shrink:0; }
+.draft-mail-hdr-value { color:var(–text); flex:1; }
+.draft-body-text {
+padding:16px; font-size:13px; color:var(–text-muted);
+line-height:1.8; white-space:pre-wrap;
+max-height:300px; overflow-y:auto;
+}
+.draft-ot-table {
+width:100%; border-collapse:collapse;
+font-size:12px; margin-bottom:12px;
+}
+.draft-ot-table th {
+background:var(–surface3); color:var(–text-muted);
+font-size:10px; font-weight:700; letter-spacing:0.8px;
+text-transform:uppercase; padding:8px 12px;
+border-bottom:1px solid var(–border); text-align:left;
+}
+.draft-ot-table td {
+padding:8px 12px; border-bottom:1px solid var(–border);
+color:var(–text); font-size:12px;
+}
+.draft-ot-table tr:last-child td { border-bottom:none; }
+.draft-ot-table tr:hover td { background:var(–surface2); }
+.deal-status-pill {
+font-size:10px; font-weight:700; padding:2px 7px;
+border-radius:99px; text-transform:uppercase;
+}
+.deal-open     { background:rgba(79,124,255,0.13); color:#7da4ff; }
+.deal-settled  { background:rgba(34,197,94,0.13);  color:#5ee89a; }
+.deal-pending  { background:rgba(245,158,11,0.13); color:#fbbf24; }
+.deal-cancelled{ background:rgba(239,68,68,0.13);  color:#f87171; }
+.draft-actions { display:flex; gap:8px; }
+.draft-send-btn {
+display:flex; align-items:center; gap:6px;
+padding:9px 18px; border-radius:8px;
+background:linear-gradient(135deg,var(–accent),var(–accent2));
+border:none; color:#fff; font-family:‘DM Sans’,sans-serif;
+font-size:13px; font-weight:600; cursor:pointer;
+box-shadow:0 4px 14px rgba(79,124,255,0.3);
+transition:opacity 0.2s,transform 0.15s;
+}
+.draft-send-btn:hover { opacity:0.88; transform:translateY(-1px); }
+.draft-discard-btn {
+display:flex; align-items:center; gap:6px;
+padding:9px 14px; border-radius:8px;
+background:transparent; border:1px solid var(–border);
+color:var(–text-muted); font-family:‘DM Sans’,sans-serif;
+font-size:13px; cursor:pointer; transition:all 0.15s;
+}
+.draft-discard-btn:hover { border-color:var(–red); color:var(–red); }
+.sent-row {
+background:var(–surface); border:1px solid var(–border);
+border-radius:9px; padding:14px 16px; margin-bottom:4px;
+cursor:pointer; transition:border-color 0.2s,background 0.2s;
+position:relative; overflow:visible;
+}
+.sent-row::before {
+content:’’; position:absolute; left:0; top:0; bottom:0;
+width:3px; border-radius:3px 0 0 3px;
+}
+.sent-row.holding::before { background:var(–accent); }
+.sent-row.forward::before { background:var(–orange); }
+.sent-row:hover { border-color:var(–accent); background:var(–surface2); }
+.sent-summary { display:flex; align-items:center; gap:10px; }
+.sent-type-badge {
+font-size:9.5px; font-weight:700; padding:2px 8px;
+border-radius:99px; flex-shrink:0; text-transform:uppercase;
+}
+.sent-type-holding { background:rgba(79,124,255,0.13); color:#7da4ff; }
+.sent-type-forward { background:rgba(249,115,22,0.13); color:#fb923c; }
+.sent-info { flex:1; min-width:0; }
+.sent-to { font-size:11px; font-weight:600; color:var(–text-dim); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:3px; }
+.sent-subject { font-size:13px; font-weight:600; color:var(–text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:3px; display:flex; align-items:center; gap:6px; }
+.sent-preview { font-size:12px; color:var(–text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sent-expanded { display:none; margin-top:14px; padding-top:14px; border-top:1px solid var(–border); animation:slideDown 0.22s ease; }
+.sent-row.open .sent-expanded { display:block; }
+.sent-mail-card { background:var(–surface3); border:1px solid var(–border); border-radius:10px; overflow:hidden; }
+.sent-mail-header { padding:12px 16px; border-bottom:1px solid var(–border); display:flex; flex-direction:column; gap:6px; }
+.sent-mail-header-row { display:flex; align-items:center; gap:8px; font-size:12px; }
+.sent-mail-header-label { color:var(–text-dim); font-weight:600; width:42px; flex-shrink:0; }
+.sent-mail-header-value { color:var(–text); }
+.sent-mail-body { padding:16px; font-size:13px; color:var(–text-muted); line-height:1.8; white-space:pre-wrap; }
+.sent-meta-row { display:flex; align-items:center; gap:8px; padding:10px 16px; border-top:1px solid var(–border); background:var(–surface2); flex-wrap:wrap; }
+.sent-meta-tag { font-size:10.5px; font-weight:600; padding:2px 8px; border-radius:99px; background:var(–surface3); border:1px solid var(–border); color:var(–text-muted); }
+</style>
 
+</head>
+<body>
 
+<!-- ══ PAGE 1: LOGIN ══ -->
 
-language:     payload.language     || 'English',
-is_complaint: payload.is_complaint || false
+<div id="page-login" class="page active">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="hsbc-badge">HSBC</div>
+      <div class="login-logo-text">Email Triage</div>
+    </div>
+    <div class="login-title">Welcome back</div>
+    <div class="login-subtitle">Sign in to access the AI Email Triage platform</div>
+    <div class="form-group">
+      <label class="form-label">Email Address</label>
+      <input class="form-input" type="email" id="loginEmail" placeholder="you@hsbc.com">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Password</label>
+      <input class="form-input" type="password" id="loginPassword" placeholder="Enter your password">
+    </div>
+    <button class="login-btn" onclick="doLogin()">Sign In</button>
+    <div class="login-error" id="loginError">Invalid credentials. Please try again.</div>
+    <div class="login-footer">HSBC Group Internal Platform · Confidential</div>
+  </div>
+</div>
 
+<!-- ══ PAGE 2: APP ══ -->
 
+<div id="page-app" class="page">
+
+  <header class="app-header">
+    <div class="app-logo">AI<span>Email Triage</span></div>
+    <div class="tab-bar">
+      <button class="tab-btn active" id="tab-upload-btn" onclick="switchTab('upload')">
+        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Upload Email
+      </button>
+      <button class="tab-btn" id="tab-inbox-btn" onclick="switchTab('inbox')">
+        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        Case Inbox
+        <span id="inbox-tab-count" style="background:var(--accent);color:#fff;font-size:10px;font-weight:700;border-radius:99px;padding:1px 6px;display:none"></span>
+      </button>
+      <button class="tab-btn" id="tab-dashboard-btn" onclick="switchTab('dashboard')">
+        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Dashboard
+      </button>
+    </div>
+    <div class="header-right">
+      <button id="themeToggle" onclick="toggleTheme()"
+        style="background:var(--surface2);border:1px solid var(--border);
+        border-radius:8px;padding:6px 10px;cursor:pointer;
+        color:var(--text-muted);font-size:12.5px;
+        display:flex;align-items:center;gap:5px;
+        transition:all 0.15s;font-family:'DM Sans',sans-serif">
+        🌙 Dark
+      </button>
+      <span class="user-info" id="userNameDisplay"></span>
+      <div class="avatar" id="userAvatar">AJ</div>
+      <button class="logout-btn" onclick="doLogout()">Sign out</button>
+    </div>
+  </header>
+
+  <!-- ══ TAB: UPLOAD ══ -->
+
+  <div class="tab-panel active" id="tab-upload">
+    <div class="upload-page">
+      <div class="upload-heading">Upload Email File</div>
+      <div class="upload-subheading">Upload an email document and our AI agent will extract, analyse and create a case automatically.</div>
+      <div class="drop-zone" id="dropZone">
+        <input type="file" id="fileInput" accept=".pdf,.doc,.docx,.txt,.eml,.msg" onchange="onFileSelected(this)">
+        <span class="drop-icon">📧</span>
+        <div class="drop-title">Drop your email file here</div>
+        <div class="drop-sub">or click to browse files</div>
+        <div class="drop-formats">
+          <span class="format-tag">PDF</span>
+          <span class="format-tag">DOC</span>
+          <span class="format-tag">DOCX</span>
+          <span class="format-tag">TXT</span>
+          <span class="format-tag">EML</span>
+        </div>
+      </div>
+      <div class="selected-file" id="selectedFile">
+        <div class="file-icon" id="fileIcon">📄</div>
+        <div class="file-details">
+          <div class="file-name" id="fileName">—</div>
+          <div class="file-size" id="fileSize">—</div>
+        </div>
+        <button class="file-remove" onclick="clearFile()">✕</button>
+      </div>
+      <button class="upload-btn" id="uploadBtn" disabled onclick="startUpload()">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Process Email with AI
+      </button>
+      <div class="progress-card" id="progressCard">
+        <div class="progress-title">
+          <div class="step-spin" id="progressSpinner"></div>
+          Processing your email…
+        </div>
+        <div class="step-list" id="stepList">
+          <div class="step-item waiting" id="step-1">
+            <div class="step-icon">📤</div>
+            <div class="step-text"><div class="step-label">File Uploaded</div><div class="step-sub">Reading file and extracting content</div></div>
+            <div class="step-time" id="step-1-time"></div>
+          </div>
+          <div class="step-item waiting" id="step-2">
+            <div class="step-icon">📝</div>
+            <div class="step-text"><div class="step-label">Email Extracted</div><div class="step-sub">Converting to readable text format</div></div>
+            <div class="step-time" id="step-2-time"></div>
+          </div>
+          <div class="step-item waiting" id="step-3">
+            <div class="step-icon">🤖</div>
+            <div class="step-text"><div class="step-label">AI Agent Analysis</div><div class="step-sub">Sending to AI agent for intent analysis</div></div>
+            <div class="step-time" id="step-3-time"></div>
+          </div>
+          <div class="step-item waiting" id="step-4">
+            <div class="step-icon">🗂️</div>
+            <div class="step-text"><div class="step-label">Case Created</div><div class="step-sub">Inserting case into the correct team table</div></div>
+            <div class="step-time" id="step-4-time"></div>
+          </div>
+          <div class="step-item waiting" id="step-5">
+            <div class="step-icon">✅</div>
+            <div class="step-text"><div class="step-label">Done</div><div class="step-sub">Case is ready in inbox</div></div>
+            <div class="step-time" id="step-5-time"></div>
+          </div>
+        </div>
+      </div>
+      <div class="result-card" id="resultCard"></div>
+    </div>
+  </div>
+
+  <!-- ══ TAB: INBOX ══ -->
+
+  <div class="tab-panel" id="tab-inbox">
+    <div class="inbox-layout">
+      <aside class="inbox-sidebar">
+        <div style="padding:4px 10px 12px">
+          <button onclick="switchTab('upload')" style="width:100%;padding:9px 14px;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:9px;color:#fff;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:7px;box-shadow:0 4px 14px rgba(79,124,255,0.25)">
+            + New Case
+          </button>
+        </div>
+
+```
+    <div class="section-label">Inbox</div>
+    <div class="nav-item active" onclick="inboxShowAll(this)">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+      All Cases <span class="bc" id="cnt-all">—</span>
+    </div>
+    <div class="nav-item" onclick="inboxFilter('open',this)">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
+      Open <span class="bc" id="cnt-open">—</span>
+    </div>
+    <div class="nav-item" onclick="inboxFilter('pending',this)">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/></svg>
+      Pending <span class="bc" id="cnt-pending">—</span>
+    </div>
+    <div class="nav-item" onclick="inboxFilter('escalated',this)">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      Escalated <span class="bc" id="cnt-escalated">—</span>
+    </div>
+    <div class="nav-item" onclick="inboxFilter('resolved',this)">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg>
+      Resolved <span class="bc" id="cnt-resolved">—</span>
+    </div>
+    <div class="nav-item" onclick="inboxFilter('closed',this)">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      Closed <span class="bc" id="cnt-closed">—</span>
+    </div>
+    <div class="nav-item" onclick="inboxFilter('no action required',this)">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+      No Action Required <span class="bc" id="cnt-noaction">—</span>
+    </div>
+    <div class="nav-item" onclick="inboxFilter('human action required',this)">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      Human Action Req. <span class="bc" id="cnt-humanaction">—</span>
+    </div>
+    <div class="nav-item" onclick="showSentItems(this)">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22,2 15,22 11,13 2,9"/></svg>
+      Sent Items <span class="bc" id="cnt-sent">—</span>
+    </div>
+    <div class="nav-item" onclick="showDraftFolder(this)">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+      Drafts <span class="bc" id="cnt-drafts">—</span>
+    </div>
+
+    <div class="sidebar-divider"></div>
+    <div class="section-label">Teams</div>
+
+    <div class="team-folder">
+      <div class="team-folder-hdr" onclick="toggleTeamFolder(this)">
+        <div class="team-dot dot-d"></div>Derivatives Ops
+        <span class="bc" id="cnt-deriv" style="background:var(--surface3);font-size:10px;font-weight:600;border-radius:99px;padding:1px 6px;color:var(--text-muted);margin-left:auto;margin-right:5px">—</span>
+        <span class="chev">▶</span>
+      </div>
+      <div class="folder-body">
+        <div class="folder-sub" onclick="inboxFilterTeam('derivatives_operations',this)">📂 All <span style="margin-left:auto" id="sc-d-all">—</span></div>
+        <div class="folder-sub" onclick="inboxFilterTeamStatus('derivatives_operations','open',this)">🟦 Open <span style="margin-left:auto" id="sc-d-open">—</span></div>
+        <div class="folder-sub" onclick="inboxFilterTeamStatus('derivatives_operations','resolved',this)">✅ Resolved <span style="margin-left:auto" id="sc-d-res">—</span></div>
+        <div class="folder-sub" onclick="inboxFilterTeamStatus('derivatives_operations','escalated',this)">⚠️ Escalated <span style="margin-left:auto" id="sc-d-esc">—</span></div>
+        <div class="folder-sub" onclick="inboxFilterTeamStatus('derivatives_operations','no action required',this)">⛔ No Action <span style="margin-left:auto" id="sc-d-noact">—</span></div>
+        <div class="folder-sub" onclick="inboxFilterTeamStatus('derivatives_operations','human action required',this)">👤 Human Action <span style="margin-left:auto" id="sc-d-human">—</span></div>
+      </div>
+    </div>
+
+    <div class="team-folder">
+      <div class="team-folder-hdr" onclick="toggleTeamFolder(this)">
+        <div class="team-dot dot-t"></div>GTS
+        <span class="bc" id="cnt-treas" style="background:var(--surface3);font-size:10px;font-weight:600;border-radius:99px;padding:1px 6px;color:var(--text-muted);margin-left:auto;margin-right:5px">—</span>
+        <span class="chev">▶</span>
+      </div>
+      <div class="folder-body">
+        <div class="folder-sub" onclick="inboxFilterTeam('treasury_documentation',this)">📂 All <span style="margin-left:auto" id="sc-t-all">—</span></div>
+        <div class="folder-sub" onclick="inboxFilterTeamStatus('treasury_documentation','open',this)">🟪 Open <span style="margin-left:auto" id="sc-t-open">—</span></div>
+        <div class="folder-sub" onclick="inboxFilterTeamStatus('treasury_documentation','resolved',this)">✅ Resolved <span style="margin-left:auto" id="sc-t-res">—</span></div>
+        <div class="folder-sub" onclick="inboxFilterTeamStatus('treasury_documentation','escalated',this)">⚠️ Escalated <span style="margin-left:auto" id="sc-t-esc">—</span></div>
+        <div class="folder-sub" onclick="inboxFilterTeamStatus('treasury_documentation','no action required',this)">⛔ No Action <span style="margin-left:auto" id="sc-t-noact">—</span></div>
+        <div class="folder-sub" onclick="inboxFilterTeamStatus('treasury_documentation','human action required',this)">👤 Human Action <span style="margin-left:auto" id="sc-t-human">—</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="inbox-main">
+    <div class="inbox-toolbar">
+      <div class="toolbar-title" id="inboxTitle">All Cases</div>
+      <div class="filter-chip factive" onclick="setInboxChip(this,'all')">All</div>
+      <div class="filter-chip" onclick="setInboxChip(this,'high-conf')">High Confidence</div>
+      <div class="filter-chip" onclick="setInboxChip(this,'pending-reply')">Pending Reply</div>
+      <div style="position:relative;margin-left:4px">
+        <svg style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text-dim);pointer-events:none" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 12px 6px 28px;color:var(--text);font-size:12px;outline:none;width:160px;font-family:'DM Sans',sans-serif" placeholder="Search…" oninput="inboxSearch(this.value)">
+      </div>
+    </div>
+    <div class="case-list" id="caseList">
+      <div class="state-msg"><div class="spin2"></div><div>Loading cases…</div></div>
+    </div>
+
+    <!-- Sent Items Panel -->
+    <div id="sentItemsPanel" style="display:none;flex-direction:column;gap:3px;padding:6px 10px 40px">
+      <div class="team-group-hdr">Holding Replies — Sent to Customer</div>
+      <div id="sentHoldingList"></div>
+      <div class="team-group-hdr" style="margin-top:10px">Forward Replies — Sent to Team</div>
+      <div id="sentForwardList"></div>
+    </div>
+
+    <!-- Draft Folder Panel -->
+    <div id="draftFolderPanel" style="display:none;flex-direction:column;gap:3px;padding:6px 10px 40px">
+      <div class="team-group-hdr">
+        Derivatives Ops — Net Outstanding Drafts
+        <span style="margin-left:8px;font-size:11px;color:var(--text-dim);font-weight:400;text-transform:none;letter-spacing:0">
+          AI-drafted emails ready to send
+        </span>
+      </div>
+      <div id="draftList"></div>
+    </div>
+  </main>
+</div>
+```
+
+  </div>
+
+  <!-- ══ TAB: DASHBOARD ══ -->
+
+  <div class="tab-panel" id="tab-dashboard">
+    <div style="max-width:1100px;margin:32px auto;padding:0 20px 60px">
+
+```
+  <!-- Header -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px">
+    <div>
+      <div style="font-size:22px;font-weight:700;color:var(--text)">Dashboard</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-top:3px">Live overview of all cases and team activity</div>
+    </div>
+    <button onclick="renderDashboard()" style="display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 14px;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;transition:all 0.15s" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-muted)'">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="23,4 23,10 17,10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+      Refresh
+    </button>
+  </div>
+
+  <!-- Stat Cards -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px" id="statCards">
+    <div class="stat-card"><div class="stat-number" style="color:var(--text-dim)">—</div><div class="stat-label">Loading...</div></div>
+  </div></div>
+
+  <!-- Row 1: Team + Status -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+    <div class="dash-section">
+      <div class="dash-section-title">
+        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+        Cases by Team
+      </div>
+      <div id="teamBreakdown"></div>
+    </div>
+    <div class="dash-section">
+      <div class="dash-section-title">
+        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
+        Cases by Status
+      </div>
+      <div id="statusBreakdown"></div>
+    </div>
+  </div>
+
+  <!-- Row 2: Holding + Forward -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+    <div class="dash-section">
+      <div class="dash-section-title">
+        <div style="width:8px;height:8px;border-radius:50%;background:var(--accent);flex-shrink:0"></div>
+        Holding Reply Drafted — by Team
+      </div>
+      <div id="holdingBreakdown"></div>
+    </div>
+    <div class="dash-section">
+      <div class="dash-section-title">
+        <div style="width:8px;height:8px;border-radius:50%;background:var(--orange);flex-shrink:0"></div>
+        Forward Reply Drafted — by Team
+      </div>
+      <div id="forwardBreakdown"></div>
+    </div>
+  </div>
+
+  <!-- Row 3: No Action + Human Action -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+    <div class="dash-section">
+      <div class="dash-section-title">
+        <div style="width:8px;height:8px;border-radius:50%;background:#94a3b8;flex-shrink:0"></div>
+        No Action Required — by Team
+      </div>
+      <div id="noActionBreakdown"></div>
+    </div>
+    <div class="dash-section">
+      <div class="dash-section-title">
+        <div style="width:8px;height:8px;border-radius:50%;background:var(--orange);flex-shrink:0"></div>
+        Human Action Required — by Team
+      </div>
+      <div id="humanActionBreakdown"></div>
+    </div>
+  </div>
+
+  <!-- Recent Cases -->
+  <div class="dash-section">
+    <div class="dash-section-title">
+      <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
+      Recent Cases
+    </div>
+    <div id="recentCases"></div>
+  </div>
+
+</div>
+```
+
+  </div>
+
+</div><!-- end page-app -->
+
+<script>
+/* ══════════════════════════════════
+   AUTH
+══════════════════════════════════ */
+const VALID_USERS = [
+  { email:'admin@hsbc.com',   password:'hsbc123', name:'Admin User', initials:'AU' },
+  { email:'analyst@hsbc.com', password:'hsbc123', name:'Analyst',    initials:'AN' },
+  { email:'test@test.com',    password:'test',    name:'Test User',  initials:'TU' },
+];
+let currentUser = null;
+
+function doLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass  = document.getElementById('loginPassword').value;
+  const user  = VALID_USERS.find(u => u.email===email && u.password===pass);
+  const err   = document.getElementById('loginError');
+  if(user) {
+    err.style.display = 'none';
+    currentUser = user;
+    document.getElementById('userNameDisplay').textContent = user.name;
+    document.getElementById('userAvatar').textContent = user.initials;
+    showPage('page-app');
+    loadInboxData();
+  } else {
+    err.style.display = 'block';
+  }
+}
+function doLogout() {
+  currentUser = null;
+  showPage('page-login');
+  document.getElementById('loginPassword').value = '';
+}
+document.getElementById('loginPassword').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+document.getElementById('loginEmail').addEventListener('keydown',    e => { if(e.key==='Enter') doLogin(); });
+
+/* ══════════════════════════════════
+   ROUTING
+══════════════════════════════════ */
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function switchTab(tab) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.add('active');
+  document.getElementById('tab-'+tab+'-btn').classList.add('active');
+  if(tab === 'inbox')     loadInboxData();
+  if(tab === 'dashboard') renderDashboard();
+}
+
+/* ══════════════════════════════════
+   FILE UPLOAD
+══════════════════════════════════ */
+let selectedFile = null;
+
+function onFileSelected(input) {
+  const file = input.files[0];
+  if(!file) return;
+  selectedFile = file;
+  const icons = {pdf:'📕',doc:'📘',docx:'📘',txt:'📄',eml:'📧',msg:'📧'};
+  const ext = file.name.split('.').pop().toLowerCase();
+  document.getElementById('fileIcon').textContent = icons[ext]||'📄';
+  document.getElementById('fileName').textContent = file.name;
+  document.getElementById('fileSize').textContent = formatBytes(file.size);
+  document.getElementById('selectedFile').classList.add('show');
+  document.getElementById('uploadBtn').disabled = false;
+  resetProgress();
+}
+function clearFile() {
+  selectedFile = null;
+  document.getElementById('fileInput').value = '';
+  document.getElementById('selectedFile').classList.remove('show');
+  document.getElementById('uploadBtn').disabled = true;
+  resetProgress();
+}
+function formatBytes(b) {
+  if(b<1024) return b+' B';
+  if(b<1048576) return (b/1024).toFixed(1)+' KB';
+  return (b/1048576).toFixed(2)+' MB';
+}
+function resetProgress() {
+  document.getElementById('progressCard').classList.remove('show');
+  document.getElementById('resultCard').className = 'result-card';
+  document.getElementById('resultCard').innerHTML = '';
+  resetSteps();
+}
+function resetSteps() {
+  const labels = ['File Uploaded','Email Extracted','AI Agent Analysis','Case Created','Done'];
+  const subs   = ['Reading file and extracting content','Converting to readable text format','Sending to AI agent for intent analysis','Inserting case into the correct team table','Case is ready in inbox'];
+  const icons  = ['📤','📝','🤖','🗂️','✅'];
+  [1,2,3,4,5].forEach(i => {
+    const el = document.getElementById('step-'+i);
+    el.className = 'step-item waiting';
+    el.querySelector('.step-icon').innerHTML = icons[i-1];
+    el.querySelector('.step-label').textContent = labels[i-1];
+    el.querySelector('.step-sub').textContent   = subs[i-1];
+    document.getElementById('step-'+i+'-time').textContent = '';
+  });
+  document.getElementById('progressSpinner').style.display = '';
+}
+function stepDone(n, sub) {
+  const el = document.getElementById('step-'+n);
+  el.className = 'step-item done';
+  el.querySelector('.step-icon').textContent = '✓';
+  if(sub) el.querySelector('.step-sub').textContent = sub;
+  document.getElementById('step-'+n+'-time').textContent = new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+function stepLoading(n) {
+  const el = document.getElementById('step-'+n);
+  el.className = 'step-item loading';
+  el.querySelector('.step-icon').innerHTML = '<div class="step-spin"></div>';
+}
+function stepError(n, msg) {
+  const el = document.getElementById('step-'+n);
+  el.className = 'step-item error';
+  el.querySelector('.step-icon').textContent = '✕';
+  if(msg) el.querySelector('.step-sub').textContent = msg;
+}
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function startUpload() {
+  if(!selectedFile) return;
+  document.getElementById('uploadBtn').disabled = true;
+  document.getElementById('progressCard').classList.add('show');
+  document.getElementById('resultCard').className = 'result-card';
+  document.getElementById('resultCard').innerHTML = '';
+  resetSteps();
+
+  try {
+    // ── STEP 1: Read file as Base64 ──
+    stepLoading(1);
+    await sleep(400);
+    const base64Full  = await readFileAsBase64(selectedFile);
+    const base64Clean = base64Full.includes(',') ? base64Full.split(',')[1] : base64Full;
+    stepDone(1, `${selectedFile.name} (${formatBytes(selectedFile.size)})`);
+
+    // ── STEP 2: Extract text from file ──
+    // No external libraries — DecompressionStream built into browser
+    stepLoading(2);
+    await sleep(300);
+    let emailText  = '';
+    let pdfBase64Fallback = false;
+    const fileExt  = selectedFile.name.split('.').pop().toLowerCase();
+
+    if(fileExt === 'pdf') {
+      // Convert base64 → byte array
+      const binaryStr = atob(base64Clean);
+      const bytes     = new Uint8Array(binaryStr.length);
+      for(let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+
+      const latin1Dec = new TextDecoder('latin1');
+      let extracted   = '';
+      let pos         = 0;
+      let streamsOk   = 0;
+
+      // ── M1: Decompress FlateDecode streams with built-in DecompressionStream ──
+      while(pos < bytes.length - 20 && streamsOk < 60) {
+
+        // Find next 'stream' keyword
+        let sStart = -1;
+        for(let i = pos; i < bytes.length - 7; i++) {
+          if(bytes[i]===115&&bytes[i+1]===116&&bytes[i+2]===114&&
+             bytes[i+3]===101&&bytes[i+4]===97 &&bytes[i+5]===109) {
+            sStart = i + 6;
+            if(bytes[sStart]===13) sStart++; // \r
+            if(bytes[sStart]===10) sStart++; // \n
+            pos = i + 1;
+            break;
+          }
+          pos = i + 1;
+        }
+        if(sStart === -1) break;
+
+        // Find matching 'endstream'
+        let sEnd = -1;
+        for(let i = sStart; i < Math.min(sStart+500000, bytes.length-9); i++) {
+          if(bytes[i]===101&&bytes[i+1]===110&&bytes[i+2]===100&&
+             bytes[i+3]===115&&bytes[i+4]===116&&bytes[i+5]===114&&
+             bytes[i+6]===101&&bytes[i+7]===97 &&bytes[i+8]===109) {
+            sEnd = i; break;
+          }
+        }
+        if(sEnd === -1) break;
+
+        const streamBytes = bytes.slice(sStart, sEnd);
+
+        try {
+          // Decompress using built-in browser API
+          const ds     = new DecompressionStream('deflate-raw');
+          const writer = ds.writable.getWriter();
+          const reader = ds.readable.getReader();
+          writer.write(streamBytes).catch(()=>{});
+          writer.close().catch(()=>{});
+
+          let chunks = [], total = 0;
+          try {
+            while(true) {
+              const { done, value } = await reader.read();
+              if(done) break;
+              chunks.push(value);
+              total += value.length;
+              if(total > 800000) break;
+            }
+          } catch(e){}
+
+          if(total > 0) {
+            const buf = new Uint8Array(total);
+            let off = 0;
+            for(const c of chunks) { buf.set(c, off); off += c.length; }
+            const txt = new TextDecoder('utf-8',{fatal:false}).decode(buf);
+
+            // Skip font/image/resource streams — only keep content streams
+            const isResource = /\/BaseFont|\/FontDescriptor|\/Encoding|ColorSpace|\/XObject|\/Resources|\/ExtGState|ImageData/i.test(txt.slice(0,200));
+
+            if(!isResource) {
+              // Extract text from BT...ET blocks
+              const btBlocks = txt.match(/BT[\s\S]*?ET/g) || [];
+              for(const blk of btBlocks) {
+                // Simple text: (text) Tj
+                (blk.match(/\(([^)]*)\)\s*Tj/g)||[]).forEach(p=>{
+                  const t = p.replace(/\(([^)]*)\)\s*Tj/,'$1')
+                    .replace(/\\n/g,' ').replace(/\\r/g,'')
+                    .replace(/\\\(/g,'(').replace(/\\\)/g,')').trim();
+                  if(t.length>1 && !/^[\d.\s-]+$/.test(t)) extracted += t + ' ';
+                });
+                // Array text: [...] TJ
+                (blk.match(/\[([^\]]*)\]\s*TJ/g)||[]).forEach(p=>{
+                  (p.match(/\(([^)]{1,150})\)/g)||[]).forEach(sp=>{
+                    const t = sp.replace(/[()]/g,'').trim();
+                    if(t.length>1 && !/^[\d.\s-]+$/.test(t)) extracted += t + ' ';
+                  });
+                });
+              }
+
+              // Plain readable text from decompressed (email keywords check)
+              if(extracted.trim().length < 80) {
+                const plain = txt.replace(/[^\x20-\x7E\n\t]/g,' ').replace(/\s{3,}/g,' ').trim();
+                const hasEmailContent = /Dear|From|To|Subject|Please|Regards|SWAP|Guarantee|Confirm|trade|rate|gains|valuation/i.test(plain);
+                if(plain.length > 100 && hasEmailContent) extracted += ' ' + plain;
+              }
+              if(extracted.trim().length > 20) streamsOk++;
+            }
+          }
+        } catch(e) {
+          // Not compressed — try raw BT/ET on this stream
+          const raw = latin1Dec.decode(streamBytes);
+          (raw.match(/BT[\s\S]*?ET/g)||[]).forEach(blk=>{
+            (blk.match(/\(([^)]{1,200})\)\s*T[jJ]/g)||[]).forEach(p=>{
+              extracted += p.replace(/\(([^)]*)\)\s*T[jJ]/,'$1') + ' ';
+            });
+          });
+        }
+        pos = sEnd + 9;
+      }
+
+      // ── M2: Uncompressed BT/ET scan on raw PDF bytes ──
+      if(extracted.trim().length < 80) {
+        const rawPdf = latin1Dec.decode(bytes);
+        (rawPdf.match(/BT[\s\S]{0,3000}?ET/g)||[]).forEach(blk=>{
+          (blk.match(/\(([^)]{1,200})\)\s*T[jJ]/g)||[]).forEach(p=>{
+            extracted += p.replace(/\(([^)]*)\)\s*T[jJ]/,'$1') + ' ';
+          });
+        });
+      }
+
+      // Clean up extracted text
+      extracted = extracted
+        .replace(/\\n/g,'\n').replace(/\\r/g,'')
+        .replace(/\\\(/g,'(').replace(/\\\)/g,')')
+        .replace(/\s{2,}/g,' ').trim();
+
+      // Check if extracted content looks like real email text
+      const looksLikeEmail = /Dear|From|To|Subject|Please|Regards|SWAP|Guarantee|Confirm|trade|rate|gains|valuation|@/i.test(extracted);
+
+      if(extracted.length >= 80 && looksLikeEmail) {
+        // Successfully extracted readable email text
+        emailText = extracted;
+        stepDone(2, `${emailText.length} characters extracted from PDF`);
+      } else {
+        // ── M3: Fallback — send base64 directly to agent ──
+        // Used when PDF contains image-based text or heavy compression
+        // Agent model processes the encoded content directly
+        pdfBase64Fallback = true;
+        emailText = base64Clean;
+        stepDone(2, `PDF encoded and ready for AI processing (${formatBytes(selectedFile.size)})`);
+      }
+
+    } else if(fileExt === 'docx' || fileExt === 'doc') {
+      // ── DOCX: Route base64 through GenW JSObject3 ──
+      // Browser can't call http:// from https:// (CORS + mixed content blocked)
+      // GenW REST API datasource runs server-side — no CORS issues
+      //
+      // Flow:
+      //   HTML → updateModel({ docx_payload }) → triggerEvent('OnExtractDocx')
+      //   JSObject3 → reads Custom3.model.docx_payload
+      //            → runs extract_docx_api query (GenW REST datasource)
+      //            → storeValue('docx_result', extractedText)
+      //   Default Model → "docx_result": {{appsmith.store.docx_result}}
+      //   HTML → polls appsmith.model.docx_result every 1s
+
+      // Step 1: Push payload + reset previous result
+      try {
+        appsmith.updateModel({
+          docx_payload: {
+            file_base64: base64Clean,
+            filename:    selectedFile.name
+          },
+          docx_result: ''   // clear previous
+        });
+      } catch(e) {
+        console.warn('updateModel failed:', e.message);
+      }
+
+      await sleep(400);
+
+      // Step 2: Trigger JSObject3.OnExtractDocx
+      // JSObject3 uses extract_docx_api (REST datasource) → storeValue
+      appsmith.triggerEvent('OnExtractDocx');
+
+      // Show extracting indicator in step 2
+      stepLoading(2);
+      const stepEl = document.getElementById('step-2');
+      if(stepEl) stepEl.querySelector('.step-sub').textContent =
+        'Sending to Deloitte DOCX extractor via GenW…';
+
+      // Step 3: Initial wait for GenW to process
+      await sleep(3000);
+
+      // Step 4: Poll appsmith.model.docx_result
+      // storeValue in JSObject → Default Model → appsmith.model
+      let docxText    = '';
+      let pollAttempt = 0;
+      const maxPolls  = 30; // 30 × 1000ms = 30 seconds max
+
+      while(pollAttempt < maxPolls) {
+        await sleep(1000);
+        pollAttempt++;
+
+        try {
+          const val = appsmith.model.docx_result || '';
+
+          // Update step 2 sub label with progress
+          if(stepEl) stepEl.querySelector('.step-sub').textContent =
+            `Waiting for extractor… (${pollAttempt}/${maxPolls}s)`;
+
+          if(val === '__FAILED__') {
+            console.warn('JSObject3 reported failure → using local fallback');
+            break;
+          }
+
+          if(val && val.trim().length > 10) {
+            docxText = val;
+            console.log(`✅ DOCX ready on poll ${pollAttempt}: ${val.length} chars`);
+            break;
+          }
+
+          console.log(`⏳ Polling ${pollAttempt}/${maxPolls}…`);
+        } catch(e) {
+          console.log(`Poll ${pollAttempt} error:`, e.message);
+        }
+      }
+
+      // Step 5: Use API result or fall back to local extraction
+      if(docxText && docxText.trim().length > 10) {
+        // ✅ GenW API extraction succeeded
+        emailText = docxText;
+        stepDone(2, `${emailText.length} chars extracted from DOCX via Deloitte API`);
+
+      } else {
+        // ── Local XML fallback ──
+        console.warn('API polling timed out → local XML fallback');
+        if(stepEl) stepEl.querySelector('.step-sub').textContent =
+          'API unavailable — using local extraction…';
+
+        const binStr = atob(base64Clean);
+
+        // Try XML w:t tags
+        const wt = binStr.match(/<w:t[^>]*>([^<]+)<\/w:t>/g) || [];
+        if(wt.length > 0) {
+          emailText = wt
+            .map(m => m.replace(/<w:t[^>]*>([^<]*)<\/w:t>/g, '$1'))
+            .join(' ').trim();
+        }
+
+        // ASCII filter fallback
+        if(!emailText || emailText.length < 20) {
+          emailText = binStr.split('').filter(c => {
+            const code = c.charCodeAt(0);
+            return (code>=32&&code<=126)||code===9||code===10||code===13;
+          }).join('').replace(/\s{3,}/g,' ').trim();
+        }
+
+        if(!emailText || emailText.length < 20) {
+          throw new Error(
+            'DOCX extraction failed. ' +
+            'Deloitte API unreachable and local extraction failed. ' +
+            'Please save the file as .txt and try again.'
+          );
+        }
+        stepDone(2, `${emailText.length} chars from DOCX (local fallback)`);
+      }
+
+    } else {
+      // TXT / EML / MSG — decode base64 directly
+      try { emailText = atob(base64Clean); } catch(e) { emailText = base64Clean; }
+      if(!emailText || emailText.trim() === '') {
+        throw new Error('File appears empty. Please check the file and try again.');
+      }
+      stepDone(2, `${emailText.length} characters extracted from ${fileExt.toUpperCase()}`);
+    }
+
+    if(!emailText || emailText.trim().length < 5) {
+      throw new Error(`Could not extract content from ${fileExt.toUpperCase()} file.`);
+    }
+
+    // ── STEP 3: Send to AI Agent ──
+    stepLoading(3);
+    const AGENT_URL = 'https://agentbuilder8.ingenw-innovation-nonprod.deloitte.com/api/v1/prediction/89d09c98-f0c6-4c16-b04d-13fb032f8195';
+
+    // Build question based on extraction method
+    let agentQuestion;
+    if(pdfBase64Fallback) {
+      // PDF base64 fallback — instruct agent to decode PDF content
+      agentQuestion =
+        'The following content is a base64 encoded PDF email document from HSBC operations. ' +
+        'Please extract the email text from it, identify the sender, recipient, subject and body, ' +
+        'then process it according to your triage instructions and return the JSON output. ' +
+        'Base64 PDF: ' + emailText;
+    } else {
+      agentQuestion = emailText;
+    }
+
+    const agentResponse = await fetch(AGENT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: agentQuestion })
+    });
+    const agentResult = await agentResponse.json();
+    let parsed;
+    try { parsed = JSON.parse(agentResult.text); } catch(e) { parsed = agentResult; }
+
+    // Normalize status
+    const statusMap = {
+      'no_action':'no action required','no action':'no action required',
+      'human_action':'human action required','human action':'human action required',
+      'follow-up':'pending','follow_up':'pending',
+      'escalate':'escalated'
+    };
+    if(parsed.status) {
+      parsed.status = statusMap[parsed.status.toLowerCase()] || parsed.status.toLowerCase();
+    }
+
+    const team = (parsed.team||'').toLowerCase();
+    stepDone(3, `Intent: ${parsed.intent||'—'} · Team: ${parsed.team||'—'}`);
+
+    // STEP 4: Insert via GenW
+    stepLoading(4);
+    await sleep(600);
+    appsmith.updateModel({ insert_payload: parsed, insert_team: team });
+    await sleep(300);
+    appsmith.triggerEvent('OnInsertCase');
+    await sleep(1500);
+    stepDone(4, `Inserted into ${team.includes('treasury') ? 'treasury_documentation' : 'derivatives_operations'}`);
+
+    // STEP 5: Done
+    stepLoading(5);
+    await sleep(400);
+    stepDone(5, 'Case is live in inbox');
+    document.getElementById('progressSpinner').style.display = 'none';
+    showResult('success', parsed);
+
+  } catch(err) {
+    console.error('Upload error:', err);
+    [1,2,3,4,5].forEach(i => {
+      if(document.getElementById('step-'+i).classList.contains('loading')) stepError(i, err.message);
+    });
+    document.getElementById('progressSpinner').style.display = 'none';
+    showResult('fail', null, err.message);
+  }
+  document.getElementById('uploadBtn').disabled = false;
+}
+
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = e => resolve(e.target.result);
+    r.onerror = () => reject(new Error('File read failed'));
+    r.readAsDataURL(file);
+  });
+}
+
+// No external script loader needed — PDF handled natively via Base64
+
+function showResult(type, parsed, errMsg) {
+  const card = document.getElementById('resultCard');
+  card.className = 'result-card '+type;
+  if(type==='success'&&parsed) {
+    card.innerHTML = `
+      <div class="result-card-title">✅ Case Created Successfully</div>
+      <div class="result-detail">
+        <strong>Case ID:</strong> ${parsed.case_id||'Auto-assigned'}<br>
+        <strong>Intent:</strong> ${parsed.intent||'—'}<br>
+        <strong>Team:</strong> ${parsed.team||'—'}<br>
+        <strong>Status:</strong> ${parsed.status||'open'}<br>
+        <strong>Confidence:</strong> ${parsed.confidence||'—'}%<br>
+        <strong>Summary:</strong> ${parsed.summary||'—'}
+      </div>
+      <button class="view-case-btn" onclick="switchTab('inbox')">View in Inbox →</button>
+    `;
+  } else {
+    card.innerHTML = `<div class="result-card-title">❌ Processing Failed</div><div class="result-detail">${errMsg||'An unexpected error occurred.'}</div>`;
+  }
+}
+
+// Drag & drop
+const dz = document.getElementById('dropZone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if(file) { document.getElementById('fileInput').files = e.dataTransfer.files; onFileSelected(document.getElementById('fileInput')); }
+});
+
+/* ══════════════════════════════════
+   INBOX DATA
+══════════════════════════════════ */
+let allCases       = [];
+let inboxTeamFilter   = null;
+let inboxStatusFilter = null;
+let inboxChip      = 'all';
+let inboxSearchQ   = '';
+let starredKeys    = new Set();
+
+function loadInboxData() {
+  try {
+    const model = appsmith.model || {};
+    initInbox({ derivatives: model.derivatives||[], treasury: model.treasury||[] });
+  } catch(e) {
+    initInbox(getMockData());
+  }
+}
+
+function initInbox(data) {
+  const d = (data.derivatives||[]).map(r => ({...r, _src:'derivatives_operations'}));
+  const t = (data.treasury||[]).map(r =>    ({...r, _src:'treasury_documentation'}));
+  allCases = [...d, ...t];
+  updateSidebarCounts();
+  renderInbox();
+  const cnt = allCases.length;
+  const badge = document.getElementById('inbox-tab-count');
+  badge.textContent = cnt;
+  badge.style.display = cnt ? 'inline' : 'none';
+}
+
+function updateSidebarCounts() {
+  const byS   = s  => allCases.filter(c => (c.status||'open').toLowerCase()===s).length;
+  const byT   = t  => allCases.filter(c => c._src===t).length;
+  const byTS  = (t,s) => allCases.filter(c => c._src===t && (c.status||'open').toLowerCase()===s).length;
+  const set   = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v||'0'; };
+
+  set('cnt-all',      allCases.length);
+  set('cnt-open',     byS('open'));
+  set('cnt-pending',  byS('pending'));
+  set('cnt-escalated',byS('escalated'));
+  set('cnt-resolved', byS('resolved'));
+  set('cnt-closed',   byS('closed'));
+  set('cnt-noaction', byS('no action required'));
+  set('cnt-humanaction', byS('human action required'));
+  set('cnt-deriv',    byT('derivatives_operations'));
+  set('cnt-treas',    byT('treasury_documentation'));
+  set('sc-d-all',     byT('derivatives_operations'));
+  set('sc-d-open',    byTS('derivatives_operations','open'));
+  set('sc-d-res',     byTS('derivatives_operations','resolved'));
+  set('sc-d-esc',     byTS('derivatives_operations','escalated'));
+  set('sc-d-noact',   byTS('derivatives_operations','no action required'));
+  set('sc-d-human',   byTS('derivatives_operations','human action required'));
+  set('sc-t-all',     byT('treasury_documentation'));
+  set('sc-t-open',    byTS('treasury_documentation','open'));
+  set('sc-t-res',     byTS('treasury_documentation','resolved'));
+  set('sc-t-esc',     byTS('treasury_documentation','escalated'));
+  set('sc-t-noact',   byTS('treasury_documentation','no action required'));
+  set('sc-t-human',   byTS('treasury_documentation','human action required'));
+}
+
+function getFiltered() {
+  let c = [...allCases];
+  if(inboxTeamFilter)   c = c.filter(x => x._src===inboxTeamFilter);
+  if(inboxStatusFilter) c = c.filter(x => (x.status||'open').toLowerCase()===inboxStatusFilter);
+  if(inboxChip==='high-conf')    c = c.filter(x => (x.confidence||0)>=85);
+  if(inboxChip==='pending-reply') c = c.filter(x => x.holding_reply);
+  if(inboxSearchQ) {
+    const q = inboxSearchQ.toLowerCase();
+    c = c.filter(x =>
+      (x.case_id||'').toLowerCase().includes(q)||
+      (x.intent||'').toLowerCase().includes(q)||
+      (x.summary||'').toLowerCase().includes(q)||
+      (x.team||'').toLowerCase().includes(q)
+    );
+  }
+  return c;
+}
+
+function getStatusStyle(s) {
+  const m = {
+    'open':                  'background:rgba(79,124,255,0.15);color:#7da4ff',
+    'pending':               'background:rgba(245,158,11,0.15);color:#fbbf24',
+    'escalated':             'background:rgba(239,68,68,0.15);color:#f87171',
+    'resolved':              'background:rgba(34,197,94,0.15);color:#5ee89a',
+    'no action required':    'background:rgba(100,116,139,0.15);color:#94a3b8',
+    'human action required': 'background:rgba(249,115,22,0.15);color:#fb923c',
+    'closed':                'background:rgba(124,58,237,0.15);color:#b07dff',
+  };
+  return m[s]||m['open'];
+}
+
+function confCls(v)  { return v>=85?'ch':v>=65?'cm':'cl'; }
+function confClr(v)  { return v>=85?'#22c55e':v>=65?'#f59e0b':'#ef4444'; }
+function srcLabel(s) { return s==='derivatives_operations'?'Derivatives Ops':'GTS'; }
+function srcBadge(s) { return s==='derivatives_operations'?'badge-d':'badge-t'; }
+function fmtDate(iso) {
+  if(!iso) return '';
+  const d=new Date(iso),now=new Date(),diff=(now-d)/1000;
+  if(diff<86400&&d.getDate()===now.getDate()) return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  if(diff<172800) return 'Yesterday';
+  return d.toLocaleDateString([],{month:'short',day:'numeric'});
+}
+
+function getSlaInfo(c) {
+  if(!c.created_at) return null;
+  const created = new Date(c.created_at);
+  const status  = (c.status||'open').toLowerCase();
+  if(['resolved','closed','no action required'].includes(status)) return null;
+
+  // SLA hours based on status/sentiment
+  const slaHours = status === 'escalated' ? 1
+    : (c.sentiment||'').toLowerCase() === 'escalation' ? 1
+    : status === 'pending' ? 2 : 4;
+
+  const slaDue     = new Date(created.getTime() + slaHours * 3600000);
+  const now        = new Date();
+  const diffMs     = slaDue - now;
+  const diffMins   = Math.floor(diffMs / 60000);
+  const diffHours  = Math.floor(diffMins / 60);
+  const remMins    = Math.abs(diffMins % 60);
+
+  if(diffMs < 0) return { label:'⏱ SLA BREACHED', cls:'sla-breach' };
+  if(diffMins < 60) return { label:`⏱ ${diffMins}m left`, cls:'sla-warning' };
+  return { label:`⏱ ${diffHours}h ${remMins}m`, cls:'sla-ok' };
+}
+
+function getSentimentBadge(s) {
+  if(!s) return '';
+  const sl = s.toLowerCase();
+  if(sl === 'escalation') return `<span class="sentiment-badge s-escalation">😠 Escalation</span>`;
+  if(sl === 'follow-up')  return `<span class="sentiment-badge s-follow-up">😐 Follow-up</span>`;
+  return `<span class="sentiment-badge s-normal">😊 Normal</span>`;
+}
+
+function renderInbox() {
+  const list   = document.getElementById('caseList');
+  const cases  = getFiltered();
+  if(!cases.length) {
+    list.innerHTML = `<div class="state-msg"><div class="icon">📭</div><div>No cases match this filter</div></div>`;
+    return;
+  }
+  const groups = {};
+  cases.forEach(c => { if(!groups[c._src]) groups[c._src]=[]; groups[c._src].push(c); });
+  let html = '';
+  for(const [src, items] of Object.entries(groups)) {
+    html += `<div class="team-group-hdr">${srcLabel(src)}</div>`;
+    items.forEach(c => {
+      const key         = c._src+'_'+c.id;
+      const conf        = c.confidence ?? 0;
+      const starred     = starredKeys.has(key);
+      const status      = (c.status||'open').toLowerCase();
+      const replies     = c.reply_count || 0;
+      const isReply     = replies > 0;
+      const sla         = getSlaInfo(c);
+      const isComplaint = c.is_complaint === true || c.is_complaint === 'true';
+      const lang        = c.language || '';
+
+      html += `
+      <div class="case-row${isReply?' has-replies':''}${isComplaint?' complaint-case':''}"
+           id="row-${key}" onclick="toggleCase('${key}')">
+        <div class="case-summary">
+          <button class="star-btn${starred?' on':''}"
+            onclick="event.stopPropagation();toggleStar('${key}',this)">★</button>
+          <span class="team-badge ${srcBadge(c._src)}">${srcLabel(c._src)}</span>
+          <div class="case-info">
+            <div class="case-info-top">
+              <span class="case-id">${c.case_id||'—'}</span>
+              <span class="case-intent">${c.intent||'No intent'}</span>
+              ${isComplaint ? `<span class="complaint-flag">🚨 Complaint</span>` : ''}
+              ${isReply ? `<span style="background:rgba(79,124,255,0.15);color:#7da4ff;font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:99px;flex-shrink:0;white-space:nowrap">💬 ${replies} ${replies===1?'reply':'replies'}</span>` : ''}
+              ${lang ? `<span class="lang-badge">🌐 ${lang}</span>` : ''}
+            </div>
+            <div class="case-meta">
+              <span class="case-sum-text">${c.summary||''}</span>
+              ${getSentimentBadge(c.sentiment)}
+              <span class="status-pill" style="${getStatusStyle(status)}">${status.toUpperCase()}</span>
+              <span class="conf-pill ${confCls(conf)}">${conf}%</span>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
+            <span class="case-time">${fmtDate(c.created_at)}</span>
+            ${sla ? `<span class="sla-badge ${sla.cls}">${sla.label}</span>` : ''}
+            ${c.last_reply_at ? `<span style="font-size:10px;color:var(--accent)">↩ ${fmtDate(c.last_reply_at)}</span>` : ''}
+          </div>
+        </div>
+
+        <div class="case-expanded">
+          <div class="detail-grid">
+            <div class="detail-card"><div class="detail-label">Case ID</div><div class="detail-value mono">${c.case_id||'—'}</div></div>
+            <div class="detail-card"><div class="detail-label">Intent</div><div class="detail-value">${c.intent||'—'}</div></div>
+            <div class="detail-card"><div class="detail-label">Team</div><div class="detail-value"><span class="team-badge ${srcBadge(c._src)}" style="font-size:11px;padding:3px 9px">${c.team||srcLabel(c._src)}</span></div></div>
+            <div class="detail-card">
+              <div class="detail-label">Confidence</div>
+              <div class="conf-bar-wrap">
+                <div class="conf-bar"><div class="conf-bar-fill" style="width:${conf}%;background:${confClr(conf)}"></div></div>
+                <span class="conf-pill ${confCls(conf)}">${conf}%</span>
+              </div>
+            </div>
+            <div class="detail-card">
+              <div class="detail-label">Sentiment</div>
+              <div class="detail-value">${getSentimentBadge(c.sentiment)||'—'}</div>
+            </div>
+            <div class="detail-card">
+              <div class="detail-label">Language</div>
+              <div class="detail-value">${lang ? `<span class="lang-badge">🌐 ${lang}</span>` : '—'}</div>
+            </div>
+            <div class="detail-card" style="grid-column:1/-1">
+              <div class="detail-label">Status</div>
+              <div class="detail-value">
+                <span class="status-pill" style="${getStatusStyle(status)}">${status.toUpperCase()}</span>
+                ${sla ? `<span class="sla-badge ${sla.cls}" style="margin-left:8px">${sla.label}</span>` : ''}
+                ${isComplaint ? `<span class="complaint-flag" style="margin-left:8px">🚨 Complaint</span>` : ''}
+                ${isReply ? `<span style="margin-left:8px;font-size:11px;color:var(--accent)">💬 ${replies} ${replies===1?'reply':'replies'} received</span>` : ''}
+              </div>
+            </div>
+            <div class="detail-card" style="grid-column:1/-1">
+              <div class="detail-label">Reason</div>
+              <div class="detail-value"><span class="reason-tag">${c.reason||'—'}</span></div>
+            </div>
+          </div>
+
+          <div class="reply-block">
+            <div class="reply-label">← Holding Reply ${isReply ? '<span style="background:rgba(79,124,255,0.15);color:#7da4ff;font-size:9px;font-weight:700;padding:1px 6px;border-radius:99px;margin-left:6px">UPDATED</span>' : ''}</div>
+            <div class="reply-bubble">${c.holding_reply||'<em style="color:var(--text-dim)">No holding reply set</em>'}</div>
+          </div>
+
+          <div class="reply-block">
+            <div class="reply-label">→ Forward Reply ${isReply ? '<span style="background:rgba(249,115,22,0.15);color:#fb923c;font-size:9px;font-weight:700;padding:1px 6px;border-radius:99px;margin-left:6px">UPDATED</span>' : ''}</div>
+            <div class="reply-bubble fwd">${c.forward_reply||'<em style="color:var(--text-dim)">No forward reply set</em>'}</div>
+          </div>
+
+          ${c.thread_history ? `
+          <div class="reply-block" style="margin-bottom:10px">
+            <div class="reply-label" style="color:var(--accent)">🧵 Reply Thread History</div>
+            <div class="reply-bubble" style="border-left-color:var(--accent2);white-space:pre-wrap;font-size:11.5px;max-height:180px;overflow-y:auto">${c.thread_history}</div>
+          </div>` : ''}
+
+          <div class="action-row">
+            <button class="act-btn primary">← Reply</button>
+            <button class="act-btn">→ Forward</button>
+            <button class="act-btn" onclick="event.stopPropagation();changeStatus('${key}','resolved')">✓ Resolve</button>
+            <button class="act-btn" onclick="event.stopPropagation();changeStatus('${key}','escalated')">⚠ Escalate</button>
+            <button class="act-btn" onclick="event.stopPropagation();changeStatus('${key}','no action required')">⛔ No Action</button>
+            <button class="act-btn" onclick="event.stopPropagation();changeStatus('${key}','human action required')">👤 Human Action</button>
+            <button class="act-btn danger" style="margin-left:auto" onclick="event.stopPropagation()">🗑 Delete</button>
+          </div>
+        </div>
+      </div>`;
+    });
+  }
+  list.innerHTML = html;
+}
+
+function toggleCase(key) {
+  const row = document.getElementById('row-'+key);
+  const wasOpen = row.classList.contains('open');
+  document.querySelectorAll('.case-row.open').forEach(r => r.classList.remove('open'));
+  if(!wasOpen) row.classList.add('open');
+}
+function toggleStar(key, btn) {
+  starredKeys.has(key) ? starredKeys.delete(key) : starredKeys.add(key);
+  btn.classList.toggle('on');
+}
+function changeStatus(key, status) {
+  const c = allCases.find(x => x._src+'_'+x.id===key);
+  if(c) { c.status=status; updateSidebarCounts(); renderInbox(); }
+}
+function toggleTeamFolder(hdr) { hdr.classList.toggle('open'); hdr.nextElementSibling.classList.toggle('show'); }
+function setInboxNav(el) { document.querySelectorAll('.inbox-sidebar .nav-item').forEach(n=>n.classList.remove('active')); if(el) el.classList.add('active'); }
+function inboxShowAll(el)                { setInboxNav(el); inboxTeamFilter=null; inboxStatusFilter=null; document.getElementById('inboxTitle').textContent='All Cases'; renderInbox(); }
+function inboxFilter(s,el)               { setInboxNav(el); inboxTeamFilter=null; inboxStatusFilter=s; document.getElementById('inboxTitle').textContent=s.charAt(0).toUpperCase()+s.slice(1); renderInbox(); }
+function inboxFilterTeam(t,el)           { inboxTeamFilter=t; inboxStatusFilter=null; document.getElementById('inboxTitle').textContent=srcLabel(t)+' — All'; renderInbox(); }
+function inboxFilterTeamStatus(t,s,el)   { inboxTeamFilter=t; inboxStatusFilter=s; document.getElementById('inboxTitle').textContent=srcLabel(t)+' — '+s; renderInbox(); }
+function setInboxChip(chip,val)          { document.querySelectorAll('.filter-chip').forEach(c=>c.classList.remove('factive')); chip.classList.add('factive'); inboxChip=val; renderInbox(); }
+function inboxSearch(q)                  { inboxSearchQ=q; renderInbox(); }
+
+/* ══════════════════════════════════
+   SENT ITEMS
+══════════════════════════════════ */
+function showSentItems(el) {
+  setInboxNav(el);
+  document.getElementById('caseList').style.display        = 'none';
+  document.getElementById('sentItemsPanel').style.display  = 'flex';
+  document.getElementById('inboxTitle').textContent        = 'Sent Items';
+  inboxTeamFilter = null; inboxStatusFilter = null;
+  renderSentItems();
+}
+
+function hideSentPanel() {
+  document.getElementById('caseList').style.display       = '';
+  document.getElementById('sentItemsPanel').style.display = 'none';
+  const dp = document.getElementById('draftFolderPanel');
+  if(dp) dp.style.display = 'none';
+}
+
+// Override nav functions to hide sent panel
+const _isa = inboxShowAll, _if = inboxFilter,
+      _ift = inboxFilterTeam, _ifts = inboxFilterTeamStatus;
+inboxShowAll          = (el)      => { hideSentPanel(); _isa(el); };
+inboxFilter           = (s,el)    => { hideSentPanel(); _if(s,el); };
+inboxFilterTeam       = (t,el)    => { hideSentPanel(); _ift(t,el); };
+inboxFilterTeamStatus = (t,s,el)  => { hideSentPanel(); _ifts(t,s,el); };
+
+function renderSentItems() {
+  const withHolding = allCases.filter(c => c.holding_reply && c.holding_reply.trim());
+  const withForward = allCases.filter(c => c.forward_reply && c.forward_reply.trim());
+  const totalSent   = withHolding.length + withForward.length;
+
+  // Update badge
+  const badge = document.getElementById('cnt-sent');
+  if(badge) badge.textContent = totalSent || '0';
+
+  document.getElementById('sentHoldingList').innerHTML = withHolding.length
+    ? withHolding.map(c => buildSentRow(c,'holding')).join('')
+    : `<div class="state-msg" style="min-height:80px"><div style="font-size:13px;color:var(--text-dim)">No holding replies drafted yet</div></div>`;
+
+  document.getElementById('sentForwardList').innerHTML = withForward.length
+    ? withForward.map(c => buildSentRow(c,'forward')).join('')
+    : `<div class="state-msg" style="min-height:80px"><div style="font-size:13px;color:var(--text-dim)">No forward replies drafted yet</div></div>`;
+}
+
+function buildSentRow(c, type) {
+  const key       = 'sent_'+type+'_'+c._src+'_'+c.id;
+  const isHolding = type === 'holding';
+  const reply     = isHolding ? c.holding_reply : c.forward_reply;
+  const toLabel   = isHolding ? 'To: Customer / Sender' : 'To: '+( c.team || srcLabel(c._src));
+  const subject   = `Re: ${c.intent||'Case'} — ${c.case_id||''}`;
+  const preview   = reply.length > 120 ? reply.substring(0,120)+'…' : reply;
+  const badgeCls  = isHolding ? 'sent-type-holding' : 'sent-type-forward';
+  const badgeTxt  = isHolding ? '← Holding Reply' : '→ Forward Reply';
+  const color     = isHolding ? 'var(--accent)' : 'var(--orange)';
+  const replies   = c.reply_count || 0;
+  const isUpdated = replies > 0;
+
+  return `
+  <div class="sent-row ${type}" id="${key}" onclick="toggleSentRow('${key}')">
+    <div class="sent-summary">
+      <span class="sent-type-badge ${badgeCls}">${badgeTxt}</span>
+      <div class="sent-info">
+        <div class="sent-to">${toLabel}</div>
+        <div class="sent-subject">
+          ${subject}
+          ${isUpdated ? `<span style="background:rgba(79,124,255,0.15);color:#7da4ff;font-size:9px;font-weight:700;padding:1px 6px;border-radius:99px;margin-left:6px">💬 ${replies} ${replies===1?'reply':'replies'}</span>` : ''}
+        </div>
+        <div class="sent-preview">${preview}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0">
+        <span style="font-size:11px;color:var(--text-dim)">${fmtDate(c.created_at)}</span>
+        ${c.last_reply_at ? `<span style="font-size:10px;color:var(--accent)">↩ ${fmtDate(c.last_reply_at)}</span>` : ''}
+        <span class="team-badge ${srcBadge(c._src)}">${srcLabel(c._src)}</span>
+      </div>
+    </div>
+
+    <div class="sent-expanded">
+      <div class="sent-mail-card">
+        <div class="sent-mail-header">
+          <div class="sent-mail-header-row">
+            <span class="sent-mail-header-label">From:</span>
+            <span class="sent-mail-header-value">HSBC Email Triage System &lt;triage@hsbc.com&gt;</span>
+          </div>
+          <div class="sent-mail-header-row">
+            <span class="sent-mail-header-label">To:</span>
+            <span class="sent-mail-header-value" style="color:${color};font-weight:600">${isHolding ? 'Customer / Sender' : (c.team || srcLabel(c._src))}</span>
+          </div>
+          <div class="sent-mail-header-row">
+            <span class="sent-mail-header-label">Re:</span>
+            <span class="sent-mail-header-value">${c.intent||'—'} · ${c.case_id||'—'}</span>
+          </div>
+          <div class="sent-mail-header-row">
+            <span class="sent-mail-header-label">Date:</span>
+            <span class="sent-mail-header-value">${c.created_at ? new Date(c.created_at).toLocaleString() : '—'}</span>
+          </div>
+          ${isUpdated ? `
+          <div class="sent-mail-header-row" style="margin-top:4px;padding-top:8px;border-top:1px solid var(--border)">
+            <span class="sent-mail-header-label" style="color:var(--accent)">Thread:</span>
+            <span class="sent-mail-header-value" style="color:var(--accent)">💬 ${replies} customer ${replies===1?'reply':'replies'} received · Last reply: ${fmtDate(c.last_reply_at)}</span>
+          </div>` : ''}
+        </div>
+
+        <div class="sent-mail-body">${reply}</div>
+
+        ${c.thread_history && isHolding ? `
+        <div style="padding:14px 16px;border-top:1px solid var(--border);background:var(--surface2)">
+          <div style="font-size:9.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--accent2);margin-bottom:8px">🧵 Reply Thread</div>
+          <div style="font-size:11.5px;color:var(--text-muted);line-height:1.7;white-space:pre-wrap;max-height:200px;overflow-y:auto">${c.thread_history}</div>
+        </div>` : ''}
+
+        <div class="sent-meta-row">
+          <span class="sent-meta-tag">${c.case_id||'—'}</span>
+          <span class="sent-meta-tag">${c.intent||'—'}</span>
+          <span class="sent-meta-tag" style="${getStatusStyle((c.status||'open').toLowerCase())}">${(c.status||'open').toUpperCase()}</span>
+          ${isUpdated ? `<span class="sent-meta-tag" style="background:rgba(79,124,255,0.15);color:#7da4ff">💬 ${replies} ${replies===1?'reply':'replies'}</span>` : ''}
+          <span style="margin-left:auto;font-size:11px;color:var(--text-dim)">Confidence: ${c.confidence||'—'}%</span>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function toggleSentRow(key) {
+  const row = document.getElementById(key);
+  if(!row) return;
+  const wasOpen = row.classList.contains('open');
+  document.querySelectorAll('.sent-row.open').forEach(r => r.classList.remove('open'));
+  if(!wasOpen) row.classList.add('open');
+}
+
+// Update sent count when inbox loads
+const _origInitInbox = initInbox;
+initInbox = function(data) {
+  _origInitInbox(data);
+  const total = allCases.filter(c=>c.holding_reply||c.forward_reply).length;
+  const badge = document.getElementById('cnt-sent');
+  if(badge) badge.textContent = total||'0';
+
+  // Check for net outstanding drafts from OT data
+  processDraftsFromOT();
+};
+
+/* ══════════════════════════════════
+   DRAFT FOLDER — OT TABLE FEATURE
+   When customer emails asking for net outstanding,
+   agent detects it, JSObject passes OT records,
+   HTML shows draft email with all deals pre-filled.
+   User clicks Send → case closed → moves to sent.
+══════════════════════════════════ */
+
+// Drafts stored in memory (populated from GenW model)
+let allDrafts = [];
+
+function processDraftsFromOT() {
+  try {
+    const model = appsmith.model || {};
+    if(model.ot_drafts && model.ot_drafts.length > 0) {
+      // Parse ot_records if stored as JSON string from DB
+      allDrafts = model.ot_drafts.map(d => {
+        if(d.ot_records && typeof d.ot_records === 'string') {
+          try { d.ot_records = JSON.parse(d.ot_records); } catch(e) { d.ot_records = []; }
+        }
+        return d;
+      });
+    } else {
+      allDrafts = [];
+    }
+  } catch(e) {
+    allDrafts = [];
+  }
+  updateDraftCount();
+}
+
+function updateDraftCount() {
+  const badge = document.getElementById('cnt-drafts');
+  if(badge) badge.textContent = allDrafts.length || '0';
+}
+
+function showDraftFolder(el) {
+  setInboxNav(el);
+  hideSentPanel();
+  document.getElementById('caseList').style.display         = 'none';
+  document.getElementById('draftFolderPanel').style.display = 'flex';
+  document.getElementById('inboxTitle').textContent         = 'Drafts';
+
+  // Always refresh drafts from model when opening folder
+  try {
+    const model = appsmith.model || {};
+    // Parse ot_records if stored as JSON string (from DB)
+    allDrafts = (model.ot_drafts || []).map(d => {
+      if(d.ot_records && typeof d.ot_records === 'string') {
+        try { d.ot_records = JSON.parse(d.ot_records); } catch(e) { d.ot_records = []; }
+      }
+      return d;
+    });
+  } catch(e) {
+    allDrafts = [];
+  }
+
+  updateDraftCount();
+  renderDrafts();
+}
+
+function hideDraftPanel() {
+  document.getElementById('draftFolderPanel').style.display = 'none';
+  document.getElementById('caseList').style.display         = '';
+}
+
+// Also override nav functions to hide draft panel
+const _isaOrig = inboxShowAll, _ifOrig = inboxFilter,
+      _iftOrig = inboxFilterTeam, _iftsOrig = inboxFilterTeamStatus;
+inboxShowAll          = (el)     => { hideDraftPanel(); _isaOrig(el); };
+inboxFilter           = (s,el)   => { hideDraftPanel(); _ifOrig(s,el); };
+inboxFilterTeam       = (t,el)   => { hideDraftPanel(); _iftOrig(t,el); };
+inboxFilterTeamStatus = (t,s,el) => { hideDraftPanel(); _iftsOrig(t,s,el); };
+
+function renderDrafts() {
+  const draftList = document.getElementById('draftList');
+  if(!draftList) return;
+
+  // Never show loading — always resolve to empty or list
+  if(!allDrafts || !allDrafts.length) {
+    draftList.innerHTML = `
+      <div class="state-msg" style="min-height:180px">
+        <div class="icon" style="font-size:40px">📝</div>
+        <div style="font-size:14px;font-weight:600;color:var(--text-muted);margin-top:4px">
+          No drafts yet
+        </div>
+        <div style="font-size:12.5px;color:var(--text-dim);margin-top:8px;line-height:1.6;text-align:center;max-width:320px">
+          When a customer emails requesting their<br>
+          <strong style="color:var(--accent)">Net Outstanding Position</strong>,<br>
+          the AI will automatically draft a reply<br>
+          here for your review before sending.
+        </div>
+        <div style="margin-top:16px;padding:10px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:11.5px;color:var(--text-dim)">
+          💡 Try uploading the ABC Corporation sample email
+        </div>
+      </div>`;
+    return;
+  }
+
+  draftList.innerHTML = allDrafts.map((d, idx) => buildDraftCard(d, idx)).join('');
+}
+
+function buildDraftCard(d, idx) {
+  const key         = 'draft_'+idx;
+  const otRecords   = d.ot_records || [];
+  const draftEmail  = d.draft_email || '';
+  const customerName= d.customer_name || 'Customer';
+  const customerMail= d.customer_email || '';
+  const caseId      = d.case_id || '';
+  const preview     = draftEmail.length > 100 ? draftEmail.substring(0,100)+'…' : draftEmail;
+
+  // Build OT table rows
+  const tableRows = otRecords.map(r => `
+    <tr>
+      <td style="font-family:'Space Mono',monospace;font-size:11px">${r.deal_reference_id||'—'}</td>
+      <td>${r.name||'—'}</td>
+      <td style="font-size:11.5px;color:var(--text-muted)">${r.mail||'—'}</td>
+      <td>${r.deal_date ? new Date(r.deal_date).toLocaleDateString() : '—'}</td>
+      <td><span class="deal-status-pill deal-${(r.deal_status||'open').toLowerCase()}">${r.deal_status||'—'}</span></td>
+      <td style="font-family:'Space Mono',monospace;font-size:11px">${r.dealing_number||'—'}</td>
+    </tr>
+  `).join('');
+
+  return `
+  <div class="draft-card" id="${key}">
+    <div class="draft-header" onclick="toggleDraftCard('${key}')">
+      <span class="draft-tag">📝 Draft</span>
+      <div class="draft-info">
+        <div class="draft-to">To: ${customerName} &lt;${customerMail}&gt;</div>
+        <div class="draft-subject">Re: Net Outstanding Position — ${caseId}</div>
+        <div class="draft-preview">${preview}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
+        <span style="font-size:11px;color:var(--yellow);font-weight:600">Draft</span>
+        <span style="font-size:10px;color:var(--text-dim)">${otRecords.length} deal${otRecords.length===1?'':'s'}</span>
+      </div>
+    </div>
+
+    <div class="draft-body-wrap">
+
+      <!-- OT Records Table -->
+      ${otRecords.length > 0 ? `
+      <div style="padding:0 0 12px">
+        <div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-dim);margin-bottom:8px">
+          📊 Outstanding Deals — ${customerName}
+        </div>
+        <div style="overflow-x:auto;border-radius:8px;border:1px solid var(--border)">
+          <table class="draft-ot-table">
+            <thead>
+              <tr>
+                <th>Deal Ref ID</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Deal Date</th>
+                <th>Deal Status</th>
+                <th>Dealing No.</th>
+              </tr>
+            </thead>
+            <tbody>${tableRows}</tbody>
+          </table>
+        </div>
+      </div>` : ''}
+
+      <!-- Draft Email -->
+      <div class="draft-mail-box">
+        <div class="draft-mail-hdr">
+          <div class="draft-mail-hdr-row">
+            <span class="draft-mail-hdr-label">From:</span>
+            <span class="draft-mail-hdr-value">HSBC Derivatives Operations INM &lt;derivativesoperationsinm@hsbc.co.in&gt;</span>
+          </div>
+          <div class="draft-mail-hdr-row">
+            <span class="draft-mail-hdr-label">To:</span>
+            <span class="draft-mail-hdr-value" style="color:var(--accent);font-weight:600">${customerName} &lt;${customerMail}&gt;</span>
+          </div>
+          <div class="draft-mail-hdr-row">
+            <span class="draft-mail-hdr-label">Subject:</span>
+            <span class="draft-mail-hdr-value">Re: Net Outstanding Position — ${caseId}</span>
+          </div>
+          <div class="draft-mail-hdr-row">
+            <span class="draft-mail-hdr-label">Case:</span>
+            <span class="draft-mail-hdr-value" style="font-family:'Space Mono',monospace;color:var(--accent);font-size:11px">${caseId}</span>
+          </div>
+          <div style="padding:6px 0 2px;font-size:10.5px;color:var(--text-dim)">
+            ✏️ Click the email body below to edit before sending
+          </div>
+        </div>
+        <textarea
+          id="draft-body-${idx}"
+          class="draft-body-text"
+          oninput="saveDraftEdit(${idx}, this.value)"
+          placeholder="Draft email body will appear here…"
+        >${draftEmail}</textarea>
+
+```
+  </div>
+
+  <!-- Actions -->
+  <div class="draft-actions">
+    <button class="draft-send-btn" onclick="sendDraft('${key}', ${idx})">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22,2 15,22 11,13 2,9"/></svg>
+      Send Email
+    </button>
+    <button class="draft-discard-btn" onclick="discardDraft('${key}', ${idx})">
+      🗑 Discard
+    </button>
+    <span style="margin-left:auto;font-size:11.5px;color:var(--text-dim);align-self:center">
+      Sending will close Case ${caseId} automatically
+    </span>
+  </div>
+</div>
+```
+
+  </div>`;
+}
+
+function toggleDraftCard(key) {
+const card = document.getElementById(key);
+if(!card) return;
+const wasOpen = card.classList.contains(‘open’);
+document.querySelectorAll(’.draft-card.open’).forEach(c => c.classList.remove(‘open’));
+if(!wasOpen) card.classList.add(‘open’);
+}
+
+// Save edited draft locally — sendDraft reads allDrafts[idx].draft_email
+function saveDraftEdit(idx, value) {
+if(allDrafts[idx]) {
+allDrafts[idx].draft_email = value;
+}
+}
+
+async function sendDraft(key, idx) {
+const d   = allDrafts[idx];
+if(!d) return;
+const btn = document.querySelector(`#${key} .draft-send-btn`);
+if(btn) {
+btn.disabled    = true;
+btn.innerHTML   = ‘<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg> Sending…’;
+}
+
+try {
+// ── Step 1: Push payload to model for JSObject2 to read ──
+appsmith.updateModel({
+send_draft_payload: {
+case_id:        d.case_id,
+customer_name:  d.customer_name,
+customer_email: d.customer_email,
+draft_email:    d.draft_email,
+action:         ‘SEND_DRAFT’
+}
+});
+
+```
+// ── Step 2: Small delay for model to update ──
+await new Promise(r => setTimeout(r, 300));
+
+// ── Step 3: Trigger JSObject2.OnSendDraft in GenW ──
+appsmith.triggerEvent('OnSendDraft');
+
+// ── Step 4: Wait for DB operations to complete ──
+await new Promise(r => setTimeout(r, 1500));
+
+// ── Step 5: Update UI locally ──
+// Remove from drafts
+allDrafts.splice(idx, 1);
+updateDraftCount();
+renderDrafts();
+
+// Update case status to closed locally
+const c = allCases.find(x => x.case_id === d.case_id);
+if(c) {
+  c.status = 'closed';
+  updateSidebarCounts();
+}
+
+// Show success toast
+showToast('✅ Email sent! Case ' + d.case_id + ' closed.');
+```
+
+} catch(e) {
+if(btn) {
+btn.disabled  = false;
+btn.innerHTML = ‘<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22,2 15,22 11,13 2,9"/></svg> Send Email’;
+}
+showToast(’❌ Send failed: ’ + e.message, true);
+}
+}
+
+function discardDraft(key, idx) {
+if(!confirm(‘Discard this draft? The case will remain open.’)) return;
+allDrafts.splice(idx, 1);
+updateDraftCount();
+renderDrafts();
+}
+
+function showToast(msg, isError) {
+const t = document.createElement(‘div’);
+t.style.cssText = `position:fixed;bottom:24px;right:24px;z-index:9999; background:${isError?'var(--red)':'var(--green)'}; color:#fff;padding:12px 20px;border-radius:10px; font-family:'DM Sans',sans-serif;font-size:13.5px;font-weight:600; box-shadow:0 8px 24px rgba(0,0,0,0.3); animation:fadeUp 0.3s ease;`;
+t.textContent = msg;
+document.body.appendChild(t);
+setTimeout(() => t.remove(), 3500);
+}
+
+/* ══════════════════════════════════
+DASHBOARD
+══════════════════════════════════ */
+function renderDashboard() {
+if(!allCases.length) { loadInboxData(); return; }
+
+const total  = allCases.length;
+const deriv  = allCases.filter(c => c._src===‘derivatives_operations’);
+const treas  = allCases.filter(c => c._src===‘treasury_documentation’);
+const byS    = s => allCases.filter(c => (c.status||‘open’).toLowerCase()===s).length;
+const byTS   = (t,s) => allCases.filter(c => c._src===t && (c.status||‘open’).toLowerCase()===s).length;
+
+const derivHolding = deriv.filter(c => c.holding_reply && c.holding_reply.trim()).length;
+const treasHolding = treas.filter(c => c.holding_reply && c.holding_reply.trim()).length;
+const derivForward = deriv.filter(c => c.forward_reply && c.forward_reply.trim()).length;
+const treasForward = treas.filter(c => c.forward_reply && c.forward_reply.trim()).length;
+const derivNoAct   = byTS(‘derivatives_operations’,‘no action required’);
+const treasNoAct   = byTS(‘treasury_documentation’,‘no action required’);
+const derivHuman   = byTS(‘derivatives_operations’,‘human action required’);
+const treasHuman   = byTS(‘treasury_documentation’,‘human action required’);
+
+const totalHolding = derivHolding + treasHolding;
+const totalForward = derivForward + treasForward;
+const totalNoAct   = derivNoAct + treasNoAct;
+const totalHuman   = derivHuman + treasHuman;
+
+// ── STAT CARDS ──
+document.getElementById(‘statCards’).innerHTML = `<div class="stat-card"> <div class="stat-number" style="color:var(--accent)">${total}</div> <div class="stat-label">Total Cases</div> <div class="stat-sub">${deriv.length} Derivatives Ops · ${treas.length} GTS</div> </div> <div class="stat-card"> <div class="stat-number" style="color:var(--green)">${totalHolding}</div> <div class="stat-label">Holding Replies Drafted</div> <div class="stat-sub">${total?Math.round(totalHolding/total*100):0}% of all cases covered</div> </div> <div class="stat-card"> <div class="stat-number" style="color:var(--orange)">${totalForward}</div> <div class="stat-label">Forward Replies Drafted</div> <div class="stat-sub">${total?Math.round(totalForward/total*100):0}% of all cases covered</div> </div> <div class="stat-card"> <div class="stat-number" style="color:var(--yellow)">${totalHuman}</div> <div class="stat-label">Human Action Required</div> <div class="stat-sub">${totalNoAct} no action required</div> </div>`;
+
+// ── TEAM BREAKDOWN ──
+const teamRows = [
+{label:‘Derivatives Ops’, count:deriv.length, color:’#4f7cff’},
+{label:‘GTS’,             count:treas.length,  color:’#7c3aed’},
+];
+document.getElementById(‘teamBreakdown’).innerHTML = teamRows.map(t => `<div class="dash-bar-row"> <div class="dash-bar-label">${t.label}</div> <div class="dash-bar-track"><div class="dash-bar-fill" style="width:${total?(t.count/total*100):0}%;background:${t.color}"></div></div> <div class="dash-bar-count">${t.count}</div> <div class="dash-bar-pct">${total?Math.round(t.count/total*100):0}%</div> </div>`).join(’’);
+
+// ── STATUS BREAKDOWN ──
+const statuses = [
+{label:‘Open’,                  key:‘open’,                   color:’#4f7cff’},
+{label:‘Pending’,               key:‘pending’,                color:’#f59e0b’},
+{label:‘Escalated’,             key:‘escalated’,              color:’#ef4444’},
+{label:‘Resolved’,              key:‘resolved’,               color:’#22c55e’},
+{label:‘No Action Required’,    key:‘no action required’,     color:’#94a3b8’},
+{label:‘Human Action Required’, key:‘human action required’,  color:’#f97316’},
+{label:‘Closed’,                key:‘closed’,                 color:’#7c3aed’},
+];
+document.getElementById(‘statusBreakdown’).innerHTML = statuses.map(s => {
+const cnt = byS(s.key);
+return ` <div class="dash-bar-row"> <div class="dash-bar-label">${s.label}</div> <div class="dash-bar-track"><div class="dash-bar-fill" style="width:${total?(cnt/total*100):0}%;background:${s.color}"></div></div> <div class="dash-bar-count">${cnt}</div> <div class="dash-bar-pct">${total?Math.round(cnt/total*100):0}%</div> </div>`;
+}).join(’’);
+
+// ── STATUS BREAKDOWN ──
+const statuses = [
+{label:‘Open’,                  key:‘open’,                   color:’#4f7cff’},
+{label:‘Pending’,               key:‘pending’,                color:’#f59e0b’},
+{label:‘Escalated’,             key:‘escalated’,              color:’#ef4444’},
+{label:‘Resolved’,              key:‘resolved’,               color:’#22c55e’},
+{label:‘No Action Required’,    key:‘no action required’,     color:’#94a3b8’},
+{label:‘Human Action Required’, key:‘human action required’,  color:’#f97316’},
+];
+document.getElementById(‘statusBreakdown’).innerHTML = statuses.map(s => {
+const cnt = byS(s.key);
+return ` <div class="dash-bar-row"> <div class="dash-bar-label">${s.label}</div> <div class="dash-bar-track"><div class="dash-bar-fill" style="width:${total?(cnt/total*100):0}%;background:${s.color}"></div></div> <div class="dash-bar-count">${cnt}</div> <div class="dash-bar-pct">${total?Math.round(cnt/total*100):0}%</div> </div>`;
+}).join(’’);
+
+// ── HOLDING REPLY BREAKDOWN ──
+document.getElementById(‘holdingBreakdown’).innerHTML = `<div class="dash-bar-row"> <div class="dash-bar-label">Derivatives Ops</div> <div class="dash-bar-track"><div class="dash-bar-fill" style="width:${deriv.length?(derivHolding/deriv.length*100):0}%;background:var(--accent)"></div></div> <div class="dash-bar-count">${derivHolding}</div> <div class="dash-bar-pct">${deriv.length?Math.round(derivHolding/deriv.length*100):0}%</div> </div> <div class="dash-bar-row"> <div class="dash-bar-label">GTS</div> <div class="dash-bar-track"><div class="dash-bar-fill" style="width:${treas.length?(treasHolding/treas.length*100):0}%;background:var(--accent)"></div></div> <div class="dash-bar-count">${treasHolding}</div> <div class="dash-bar-pct">${treas.length?Math.round(treasHolding/treas.length*100):0}%</div> </div> <div class="dash-divider"></div> <div class="dash-total-row"> <span style="font-size:12px;color:var(--text-muted)">Total drafted</span> <span style="font-family:'Space Mono',monospace;font-size:14px;font-weight:700;color:var(--accent)">${totalHolding} / ${total}</span> </div>`;
+
+// ── FORWARD REPLY BREAKDOWN ──
+document.getElementById(‘forwardBreakdown’).innerHTML = `<div class="dash-bar-row"> <div class="dash-bar-label">Derivatives Ops</div> <div class="dash-bar-track"><div class="dash-bar-fill" style="width:${deriv.length?(derivForward/deriv.length*100):0}%;background:var(--orange)"></div></div> <div class="dash-bar-count">${derivForward}</div> <div class="dash-bar-pct">${deriv.length?Math.round(derivForward/deriv.length*100):0}%</div> </div> <div class="dash-bar-row"> <div class="dash-bar-label">GTS</div> <div class="dash-bar-track"><div class="dash-bar-fill" style="width:${treas.length?(treasForward/treas.length*100):0}%;background:var(--orange)"></div></div> <div class="dash-bar-count">${treasForward}</div> <div class="dash-bar-pct">${treas.length?Math.round(treasForward/treas.length*100):0}%</div> </div> <div class="dash-divider"></div> <div class="dash-total-row"> <span style="font-size:12px;color:var(--text-muted)">Total drafted</span> <span style="font-family:'Space Mono',monospace;font-size:14px;font-weight:700;color:var(--orange)">${totalForward} / ${total}</span> </div>`;
+
+// ── NO ACTION REQUIRED ──
+document.getElementById(‘noActionBreakdown’).innerHTML = `<div class="dash-bar-row"> <div class="dash-bar-label">Derivatives Ops</div> <div class="dash-bar-track"><div class="dash-bar-fill" style="width:${deriv.length?(derivNoAct/deriv.length*100):0}%;background:#94a3b8"></div></div> <div class="dash-bar-count">${derivNoAct}</div> <div class="dash-bar-pct">${deriv.length?Math.round(derivNoAct/deriv.length*100):0}%</div> </div> <div class="dash-bar-row"> <div class="dash-bar-label">GTS</div> <div class="dash-bar-track"><div class="dash-bar-fill" style="width:${treas.length?(treasNoAct/treas.length*100):0}%;background:#94a3b8"></div></div> <div class="dash-bar-count">${treasNoAct}</div> <div class="dash-bar-pct">${treas.length?Math.round(treasNoAct/treas.length*100):0}%</div> </div> <div class="dash-divider"></div> <div class="dash-total-row"> <span style="font-size:12px;color:var(--text-muted)">Total</span> <span style="font-family:'Space Mono',monospace;font-size:14px;font-weight:700;color:#94a3b8">${totalNoAct} / ${total}</span> </div>`;
+
+// ── HUMAN ACTION REQUIRED ──
+document.getElementById(‘humanActionBreakdown’).innerHTML = `<div class="dash-bar-row"> <div class="dash-bar-label">Derivatives Ops</div> <div class="dash-bar-track"><div class="dash-bar-fill" style="width:${deriv.length?(derivHuman/deriv.length*100):0}%;background:var(--orange)"></div></div> <div class="dash-bar-count">${derivHuman}</div> <div class="dash-bar-pct">${deriv.length?Math.round(derivHuman/deriv.length*100):0}%</div> </div> <div class="dash-bar-row"> <div class="dash-bar-label">GTS</div> <div class="dash-bar-track"><div class="dash-bar-fill" style="width:${treas.length?(treasHuman/treas.length*100):0}%;background:var(--orange)"></div></div> <div class="dash-bar-count">${treasHuman}</div> <div class="dash-bar-pct">${treas.length?Math.round(treasHuman/treas.length*100):0}%</div> </div> <div class="dash-divider"></div> <div class="dash-total-row"> <span style="font-size:12px;color:var(--text-muted)">Total</span> <span style="font-family:'Space Mono',monospace;font-size:14px;font-weight:700;color:var(--orange)">${totalHuman} / ${total}</span> </div>`;
+
+// ── RECENT CASES ──
+const recent = […allCases]
+.sort((a,b) => new Date(b.created_at||0) - new Date(a.created_at||0))
+.slice(0, 8);
+
+document.getElementById(‘recentCases’).innerHTML = recent.length
+? recent.map(c => {
+const status = (c.status||‘open’).toLowerCase();
+return ` <div class="recent-row"> <span style="font-family:'Space Mono',monospace;font-size:11px;color:var(--accent);flex-shrink:0;width:100px">${c.case_id||'—'}</span> <span style="font-size:12.5px;color:var(--text);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.intent||'—'}</span> <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;flex-shrink:0;${getStatusStyle(status)}">${status.toUpperCase()}</span> <span style="font-size:11px;color:var(--text-dim);flex-shrink:0;margin-left:10px;width:100px;text-align:right">${c._src==='derivatives_operations'?'Derivatives Ops':'GTS'}</span> <span style="font-size:11px;color:var(--text-dim);flex-shrink:0;margin-left:10px;width:72px;text-align:right">${fmtDate(c.created_at)}</span> </div>`;
+}).join(’’)
+: ‘<div style="color:var(--text-dim);font-size:13px;padding:10px 0">No cases yet</div>’;
+}
+
+/* ══════════════════════════════════
+MOCK DATA
+══════════════════════════════════ */
+function getMockData() {
+return {
+derivatives:[
+{id:1,case_id:‘CASE-48372’,team:‘Derivatives Operations INM’,intent:‘Confirmation Request’,summary:‘Request to confirm Floating Rate 2 (-1.994) for deal MD39930376.’,reason:‘Email addressed to Derivatives Operations INM referencing Currency SWAP deal.’,holding_reply:‘Dear Lutika, Thank you for your email. We have received your request for confirmation on deal MD39930376. Our team will review and revert at the earliest. Case ref: CASE-48372. Regards, HSBC Email Triage Team’,forward_reply:‘Team, Please confirm Floating Rate 2 (-1.994) for deal MD39930376 as requested by Lutika Kundnani (ABCCL). Case ref: CASE-48372.’,confidence:92,status:‘open’,created_at:‘2026-03-27T10:42:00Z’},
+{id:2,case_id:‘CASE-83921’,team:‘Derivatives Operations INM’,intent:‘Trade Affirmation’,summary:‘Second reminder for pending trade affirmation on FWD Contract for XYZ Solutions Limited.’,reason:‘Email mentions FWD Contract affirmation pending — REMINDER 2 in subject.’,holding_reply:‘Dear Tushar, Thank you for your follow-up. Trade affirmation for contract ref 46079205322 is pending. Our team will action urgently. Case ref: CASE-83921. Regards, HSBC Email Triage Team’,forward_reply:‘Team, REMINDER 2 — Trade affirmation pending for FWD Contract XYZ Solutions Limited [46079205322]. Please affirm urgently. Case ref: CASE-83921.’,confidence:87,status:‘pending’,created_at:‘2026-03-27T11:13:00Z’},
+{id:3,case_id:‘CASE-77421’,team:‘Derivatives Operations INM’,intent:‘AE Gains Request’,summary:‘Client requesting outstanding AE gains statement as of current date.’,reason:‘Email subject mentions Outstanding AE Gains — handled by Derivatives Operations INM.’,holding_reply:‘Dear Sagar, Thank you for reaching out. We have received your request for the outstanding AE gains as on date. Our team will share the statement at the earliest. Case ref: CASE-77421. Regards, HSBC Email Triage Team’,forward_reply:‘Team, Please share outstanding AE gains statement as on date to Sagar Vaishya (ABC Pharma). Case ref: CASE-77421.’,confidence:79,status:‘open’,created_at:‘2026-03-26T09:00:00Z’},
+],
+treasury:[
+{id:1,case_id:‘CASE-55234’,team:‘GTS’,intent:‘Bank Guarantee Invocation’,summary:‘Beneficiary invoking Bank Guarantee and requesting remittance of guaranteed amount.’,reason:‘Email explicitly mentions Bank Guarantee invocation — BG processing is a GTS function.’,holding_reply:‘Dear Sir/Madam, Thank you for your email. We have received your Bank Guarantee invocation request. Our team will process the claim as per terms and conditions. Case ref: CASE-55234. Regards, HSBC Email Triage Team’,forward_reply:‘Team, BG Invocation received. Beneficiary requesting remittance via Demand Draft. Please review and process urgently. Case ref: CASE-55234.’,confidence:95,status:‘human action required’,created_at:‘2026-03-27T08:20:00Z’},
+{id:2,case_id:‘CASE-91045’,team:‘GTS’,intent:‘Bank Guarantee Extension’,summary:‘Client requesting extension of Bank Guarantee tenor to a new expiry date.’,reason:‘Email mentions BG extension request — Bank Guarantee management is a GTS function.’,holding_reply:‘Dear Sir/Madam, Thank you for your email. We have received your BG extension request. Our team will process and confirm once completed. Case ref: CASE-91045. Regards, HSBC Email Triage Team’,forward_reply:‘Team, BG Extension requested. Please process extension and confirm to client. Case ref: CASE-91045.’,confidence:83,status:‘open’,created_at:‘2026-03-26T16:45:00Z’},
+]
+};
+}
+
+/* ══════════════════════════════════
+INIT
+══════════════════════════════════ */
+document.addEventListener(‘DOMContentLoaded’, function() {
+setTimeout(() => {
+try {
+const model = appsmith.model || {};
+if(model.derivatives || model.treasury) {
+initInbox({
+derivatives: model.derivatives || [],
+treasury:    model.treasury    || []
+});
+}
+// Load OT drafts — parse ot_records if JSON string
+if(model.ot_drafts) {
+allDrafts = (model.ot_drafts || []).map(d => {
+if(d.ot_records && typeof d.ot_records === ‘string’) {
+try { d.ot_records = JSON.parse(d.ot_records); } catch(e) { d.ot_records = []; }
+}
+return d;
+});
+updateDraftCount();
+}
+} catch(e) { /* standalone mode — no appsmith */ }
+}, 500);
+});
+/* ══ THEME TOGGLE ══ */
+function toggleTheme() {
+const isLight = document.body.classList.toggle(‘light-mode’);
+const btn     = document.getElementById(‘themeToggle’);
+if(btn) btn.textContent = isLight ? ‘☀️ Light’ : ‘🌙 Dark’;
+try { localStorage.setItem(‘hsbc_theme’, isLight ? ‘light’ : ‘dark’); } catch(e){}
+}
+
+// Load saved theme on startup
+(function() {
+try {
+const saved = localStorage.getItem(‘hsbc_theme’);
+if(saved === ‘light’) {
+document.body.classList.add(‘light-mode’);
+document.addEventListener(‘DOMContentLoaded’, () => {
+const btn = document.getElementById(‘themeToggle’);
+if(btn) btn.textContent = ‘☀️ Light’;
+});
+}
+} catch(e) {}
+})();
+
+</script>
+</body>
+</html>
