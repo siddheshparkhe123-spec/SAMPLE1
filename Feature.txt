@@ -1,136 +1,107 @@
-Here’s the complete feature list of your HSBC Email Triage application:
+FROM nexus3.systems.uk.hsbc:18096/com/hsbc/group/itid/es/dc/ubuntu/gcr-ubuntu-2404:latest
 
-📥 EMAIL INGESTION
-	•	Upload emails in multiple formats — PDF, DOCX, DOC, TXT, EML, MSG
-	•	PDF text extraction using DecompressionStream (FlateDecode)
-	•	DOCX extraction via Deloitte internal API (extract_docx_api) with embedded PDF support
-	•	Local XML fallback if API unreachable
-	•	Base64 encoding and file size display
-	•	5-step progress indicator — File Uploaded → Email Extracted → AI Analysis → Case Created → Done
+ARG API_NAME
+ARG API_VERSION
+ARG PIP_NAME
+ARG PIP_LOC
 
-🤖 AI CLASSIFICATION
-	•	Powered by Deloitte AgentBuilder (gptoss-120b-hsbcimmersion model)
-	•	Classifies email intent automatically
-	•	Routes to correct team — Derivatives Operations INM or GTS
-	•	Detects client sentiment — Normal, Follow-up, Escalation
-	•	Detects email language — English, Hindi, Arabic etc.
-	•	Identifies if email is a complaint — auto-escalates
-	•	Confidence scoring — 90 (High), 50 (Medium), 20 (Low)
-	•	Extracts customer name and email automatically
-	•	Detects reply emails and links to existing case
-	•	Detects thank you / closing replies and auto-closes case
+ENV PIP_ACCOUNT="${PIP_NAME}:${PIP_LOC}"
+ENV GUNICORN_CMD_ARGS="--bind=0.0.0.0:8080 --workers=1"
+ENV SCRIPT_NAME="/${API_NAME}/v${API_VERSION}"
+ENV API_NAME=${API_NAME}
 
-📋 CASE MANAGEMENT
-	•	Auto-generates unique Case ID (CASE-XXXXX)
-	•	Creates new case or updates existing case on reply
-	•	7 case statuses — Open, Pending, Escalated, Resolved, No Action Required, Human Action Required, Closed
-	•	Status change buttons — Resolve, Escalate, No Action, Human Action
-	•	Star/favourite cases
-	•	Delete cases
-	•	Search across case ID, intent, summary, team
-	•	Filter by status, team, team + status combinations
-	•	Reply thread history with timestamps
-	•	Complaint flag with pulsing red badge
+ENV NEXUS_URL="nexus302.systems.uk.hsbc:8081/nexus/repository/pypi-proxy_n3p/simple"
+ENV NEXUS_HOST="nexus302.systems.uk.hsbc:8081"
 
-⏱ SLA TRACKING
-	•	Automatic SLA calculation per case
-	•	Escalated / Escalation sentiment → 1 hour SLA
-	•	Pending → 2 hour SLA
-	•	Open → 4 hour SLA
-	•	SLA timer shows green (on track), yellow (under 60 mins), red flashing (breached)
-	•	SLA disappears for resolved, closed, no action required cases
+USER root
 
-✉️ AI DRAFTED REPLIES
-	•	Holding reply drafted for customer automatically
-	•	Forward reply drafted for internal team automatically
-	•	GTS cases get auto-generated reference number (GTS-REF-YYYYMMDD-XXXXX)
-	•	Reference number embedded in forward reply
-	•	Process type classified — Invocation, Cancellation, Extension, Guarantee Submission, Claim
-	•	Reply thread preserves original forward reply with reference number on update
-	•	Updated badge shown when reply received
+# =========================
+# 1. INIT SETUP
+# =========================
+COPY ["target/${API_NAME}-${API_VERSION}.tar.gz", "/tmp/"]
 
-🧵 REPLY THREAD MANAGEMENT
-	•	Detects reply emails via Re: subject + Case ID
-	•	Links reply to original case automatically
-	•	Updates holding and forward reply with new content
-	•	Appends to thread history with timestamp
-	•	Reply count badge shown on case row
-	•	Last reply timestamp shown
-	•	Auto-closes case when customer sends thank you or closing keywords
+RUN mkdir -p /opt/apps/${API_NAME}-${API_VERSION} \
+ && tar -xf /tmp/${API_NAME}-${API_VERSION}.tar.gz -C /opt/apps/${API_NAME}-${API_VERSION}/ \
+ && rm -rf /tmp/*
 
-📊 OT (OUTSTANDING) DEALS
-	•	Dedicated OT table — Deal Reference ID, Name, Email, Deal Date, Deal Status, Dealing Number
-	•	Net Outstanding Request intent detected automatically
-	•	Fetches all deals for that customer from OT table
-	•	Creates draft email with deal details in Drafts folder
-	•	Agent drafts the email via customer_details_mail field
-	•	Real deal records appended below agent draft
+WORKDIR /opt/apps/${API_NAME}-${API_VERSION}/
 
-📝 DRAFT FOLDER
-	•	AI-drafted net outstanding emails stored in Drafts
-	•	Deal records shown in table — all columns visible
-	•	Draft email is fully editable before sending
-	•	Send button closes case and removes draft
-	•	Discard button removes draft without closing case
-	•	Draft count badge in sidebar
+# =========================
+# 2. SYSTEM UPDATE (CRITICAL FIX)
+# =========================
+RUN --mount=type=secret,id=auth,target=/etc/apt/auth.conf \
+    apt update --fix-missing -y || true \
+ && apt-get dist-upgrade -y \
+ && apt-get install -y --no-install-recommends \
+    python3.12 \
+    python3.12-venv \
+    python3-pip \
+    curl \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
 
-📤 SENT ITEMS
-	•	Holding replies section — emails sent to customers
-	•	Forward replies section — emails sent to teams
-	•	Full email format — From, To, Re, Date headers
-	•	Reply thread shown inside sent items
-	•	Reply count badge on sent rows
-	•	Last reply timestamp
+# =========================
+# 3. PYTHON SETUP
+# =========================
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1
 
-📈 DASHBOARD
-	•	Total cases count with team breakdown
-	•	Holding replies drafted count and coverage %
-	•	Forward replies drafted count and coverage %
-	•	Human action required count
-	•	Cases by Team bar chart — Derivatives Ops vs GTS
-	•	Cases by Status bar chart — all 7 statuses with colours
-	•	Holding reply by team with totals
-	•	Forward reply by team with totals
-	•	No action required by team
-	•	Human action required by team
-	•	Recent cases table — last 8 cases with SLA and status
+# =========================
+# 4. CREATE VENV
+# =========================
+RUN python3 -m venv /opt/venv \
+ && /opt/venv/bin/pip --version
 
-🗃️ DATABASE
-	•	derivatives_operations table — all Derivatives Ops cases
-	•	treasury_documentation table — all GTS cases
-	•	adm table — GTS reference numbers with process type
-	•	ot table — customer outstanding deals
-	•	ot_drafts table — AI drafted net outstanding emails
-	•	Columns — case_id, intent, team, summary, reason, holding_reply, forward_reply, confidence, status, thread_history, reply_count, last_reply_at, language, is_complaint
+# remove unnecessary package
+RUN apt-get purge -y python3-pip-whl || true
 
-🔐 LOGIN
-	•	HSBC branded login page
-	•	Session-based authentication
-	•	Role-based access (extendable)
+# =========================
+# 5. INSTALL DEPENDENCIES (INSIDE VENV)
+# =========================
+RUN /opt/venv/bin/pip install --upgrade pip
 
-🎨 UI / UX
-	•	Dark mode and light mode toggle — preference saved in localStorage
-	•	Gmail-style inbox layout
-	•	Sidebar navigation with live counts per status
-	•	Collapsible case rows with smooth animation
-	•	Confidence bar chart per case
-	•	Sentiment badge — 😊 Normal, 😐 Follow-up, 😠 Escalation
-	•	Language badge per case — 🌐 English, Hindi etc.
-	•	Complaint flag — 🚨 pulsing red
-	•	Reply count badge — 💬
-	•	SLA badge — green, yellow, red flashing
-	•	Team colour badges — Derivatives Ops (blue), GTS (purple)
-	•	Toast notifications for send success/failure
-	•	Responsive and mobile friendly
+RUN /opt/venv/bin/pip install -r requirements.txt \
+    --index-url https://${PIP_ACCOUNT}@${NEXUS_URL} \
+    --trusted-host ${NEXUS_HOST}
 
-⚙️ GENW ARCHITECTURE
-	•	Built on Deloitte GenW App Maker (Appsmith-based)
-	•	Custom HTML widget for Gmail-style UI
-	•	JSObject1 — case insert, reply handling, net outstanding, GTS ref, auto-close
-	•	JSObject2 — send draft, close case, delete draft
-	•	JSObject3 — DOCX extraction via Deloitte API
-	•	ft_do — data model getter for all tables
-	•	Default Model binding — derivatives, treasury, ot_drafts, docx_result
-	•	REST API datasource — DeloitteDocxAPI for DOCX extraction
-	•	storeValue bridge for JSObject → HTML communication
-	•	triggerEvent bridge for HTML → JSObject communication​​​​​​​​​​​​​​​​
+# ensure uvicorn
+RUN /opt/venv/bin/pip install uvicorn \
+    --index-url https://${PIP_ACCOUNT}@${NEXUS_URL} \
+    --trusted-host ${NEXUS_HOST}
+
+# optional gunicorn
+RUN /opt/venv/bin/pip show gunicorn -q || \
+    /opt/venv/bin/pip install gunicorn==20.1.0 \
+    --index-url https://${PIP_ACCOUNT}@${NEXUS_URL} \
+    --trusted-host ${NEXUS_HOST}
+
+# =========================
+# 6. ENV SETTINGS
+# =========================
+ENV PATH="/opt/venv/bin:$PATH"
+
+# =========================
+# 7. DEBUG (optional)
+# =========================
+RUN which python && which pip && which uvicorn
+
+# =========================
+# 8. CREATE USER
+# =========================
+RUN groupadd -g 2000 apiadgroup \
+ && useradd -u 2000 -g 2000 -ms /bin/bash apiadm \
+ && chown -R apiadm:apiadgroup /opt/
+
+RUN chmod u+s /usr/bin/rm \
+ && chmod u+s /usr/bin/find
+
+RUN rm -f /opt/apps/${API_NAME}-${API_VERSION}/docker.sh \
+ && find /opt/apps/${API_NAME}-${API_VERSION} -name "docker.sh" -type f -delete
+
+# =========================
+# 9. START API
+# =========================
+EXPOSE 8080
+
+USER apiadm
+
+CMD ["/opt/venv/bin/uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
